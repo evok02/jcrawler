@@ -15,4 +15,5 @@ build: vet
 run: build
 	@./bin/out
 
-
+test: build
+	@go test ./...

@@ -1,13 +1,15 @@
 package worker
 
 import (
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 )
 
 type workerStatus int
+
+var ERROR_RETRIES_OVER_LIMIT = errors.New("worker reached maximum amount of returies")
 
 const (
 	Default workerStatus = iota
@@ -31,26 +33,20 @@ func NewWorker(delay, timeout time.Duration) *Worker {
 	}
 }
 
-func (w *Worker) Fetch(url string) (io.Reader, error) {
-	req, err := createReqeust(url)
+func (w *Worker) Fetch(url string) (*http.Response, error) {
+	req, err := w.createReqeust(url)
 	if err != nil {
 		return nil, fmt.Errorf("Test Job: %s", err)
 	}
 
-	res, err := sendRequest(req)
+	res, err := w.sendRequest(req)
 	if err != nil {
 		return nil, fmt.Errorf("Test Job: %s", err)
 	}
 
 	//TODO: implement request after delay
-	//if res.StatusCode >= 400 {
-	//w.status = Blocked
-	//for w.retriesCount < w.maxRetriesAmount && w.status == Blocked {
-	//time.Sleep(w.delay)
-	//}
-	//}
 
-	return res.Body, nil
+	return res, err
 }
 
 func setHeaders(r *http.Request) {
@@ -65,7 +61,8 @@ func setHeaders(r *http.Request) {
 	r.Header.Set("DNT", "1")
 }
 
-func createReqeust(url string) (*http.Request, error) {
+func (w *Worker) createReqeust(url string) (*http.Request, error) {
+	w.retriesCount = 0
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("createReqeust: %s", err)
@@ -74,10 +71,16 @@ func createReqeust(url string) (*http.Request, error) {
 	return req, nil
 }
 
-func sendRequest(req *http.Request) (*http.Response, error) {
+func (w *Worker) sendRequest(req *http.Request) (*http.Response, error) {
+	if w.retriesCount > w.maxRetriesAmount {
+		return nil, ERROR_RETRIES_OVER_LIMIT
+	} else if w.retriesCount > 0 {
+		time.Sleep(w.delay)
+	}
 	res, err := new(http.Client).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("sendRequest: %s", err.Error())
 	}
-	return res, nil
+	w.retriesCount++
+	return res, err
 }
