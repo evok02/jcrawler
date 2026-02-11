@@ -1,140 +1,147 @@
 package parser
 
 import (
-	"strings"
-	"sync"
+	"errors"
 	"fmt"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 	"net/http"
+	"strings"
+	"sync"
 )
 
-//TODO: create a data structure for matches
+type matchState int
 
-//TODO: create a data structure for keywords
+const (
+	UninitializedState matchState = iota
+	InitializedState
+	FoundState
+)
 
-//TODO: finish parse method
+var ERROR_FOUND_TO_UNINIT_KEYWORD = errors.New("trying to set FoundState to unitialized value")
 
-//TODO: finish find keywords method
-
-//TODO: write calculateIndex method
-
-type matches struct {
-	matchesFound map[Keyword]int
+type Matches struct {
+	matchesFound map[string]matchState
 }
 
-
-func (m *matches) Set(key Keyword, value int) {
-	if v := m.Get(key); v  == -1 {
-		v = 1
-	}
-	m.matchesFound[key] = value
-}
-
-func (m *matches) Get(key Keyword) (int, bool) {
-	return m.matchesFound[key]	
-}
-
-type Keywords struct {
-	mu sync.Mutex
-	values []Keyword
-}
-
-func (k *Keywords) Add(key Keyword) {
-	mu.Lock()
-	k.values = append(k.values, key)
-	mu.Unlock()
-}
-
-func (m *matches) Init(k *Keywords) {
-	for _, v := range k.values {
-		m.Set(v, -1)
+func NewMatches() *Matches {
+	return &Matches{
+		matchesFound: make(map[string]matchState),
 	}
 }
 
+func (m *Matches) InitKeywords(k []string) {
+	for _, value := range k {
+		m.InitKeyword(value)
+	}
+}
+
+func (m *Matches) Get(key string) (matchState, bool) {
+	if v := m.matchesFound[strings.ToLower(key)]; v == UninitializedState {
+		return UninitializedState, false
+	} else {
+		return v, true
+	}
+}
+
+func (m *Matches) SetFound(key string) error {
+	if _, ok := m.Get(key); !ok {
+		return ERROR_FOUND_TO_UNINIT_KEYWORD
+	}
+	m.matchesFound[strings.ToLower(key)] = FoundState
+	return nil
+}
+
+func (m *Matches) InitKeyword(key string) {
+	m.matchesFound[strings.ToLower(key)] = InitializedState
+}
 
 type Link struct {
 	url string
 }
 
-func newLink(url string) Link {
+func NewLink(url string) Link {
 	return Link{
 		url: url,
 	}
 }
 
-type Keyword struct {
-	value  string
-	weight int
-}
-
 type Parser struct {
-	keywords *Keywords
-	response *ParseResponse
+	keywords   []string
+	matches    *Matches
+	linksFound []Link
 }
 
-func NewParser(keywords *Keywords) *Parser {
+func NewParser(keywords []string) *Parser {
+	matches := NewMatches()
+	matches.InitKeywords(keywords)
 	return &Parser{
 		keywords: keywords,
+		matches:  matches,
 	}
 }
 
 type ParseResponse struct {
-	mu *sync.Mutex
+	mu    *sync.Mutex
 	Index int
 	Links []Link
 }
 
-func (pr *ParseResponse) updateIndex(idx int) {
-	pr.Index = idx
-}
-
-func (pr *ParseResponse) appendLink(l Link) {
-	pr.mu.Lock()
-	pr.Links = append(pr.Links, l)
-	pr.mu.Unlock()
-}
-
 var mu = new(sync.Mutex)
 
-func (p *Parser) Parse(req *http.Request) (*ParseResponse, error) {
-	res := ParseResponse{mu: mu,}
-	p.response = &res
-	root, err := html.Parse(req.Body)
-	defer req.Body.Close()
+func (p *Parser) Parse(res *http.Response) (*ParseResponse, error) {
+	pres := ParseResponse{mu: mu}
+	root, err := html.Parse(res.Body)
+	defer res.Body.Close()
 	if err != nil {
 		return nil, fmt.Errorf("Parse: %s", err.Error())
 	}
-	res.Links = p.findLinks(root)
-	return &res, nil
+
+	p.findLinks(root)
+	p.findMatches(root)
+	fmt.Printf("%+v\n", p.matches)
+	pres.Index = calculateIndex(p.matches)
+	pres.Links = p.linksFound
+	return &pres, nil
 }
 
-func (p *Parser) findLinks(root *html.Node) []Link {
-	var links []Link
+func (p *Parser) findLinks(root *html.Node) {
+	p.linksFound = []Link{}
 	for node := range root.Descendants() {
 		if node.Type == html.ElementNode && node.DataAtom == atom.A {
 			for _, a := range node.Attr {
 				if a.Key == "href" {
-					p.response.appendLink(newLink(a.Val))
+					p.linksFound = append(p.linksFound, NewLink(a.Val))
 				}
 			}
 		}
 	}
-	return links
 }
 
-func (p *Parser) findMatches(r *html.Node) matches {
-	ms := matches{}
-	ms.Init(p.keywords)
+func (p *Parser) findMatches(r *html.Node) error {
+	p.matches = NewMatches()
+	p.matches.InitKeywords(p.keywords)
 	for node := range r.Descendants() {
 		if node.Type == html.TextNode && node.DataAtom == 0 {
 			for _, v := range strings.Fields(node.Data) {
+				if state, ok := p.matches.Get(v); ok && state != FoundState {
+					err := p.matches.SetFound(v)
+					if err != nil {
+						return fmt.Errorf("findMatches: %s", err.Error())
+					}
+				}
 			}
 		}
 	}
 	return nil
 }
 
-func calculateIndex(matches) int {
-	return 0
+func calculateIndex(m *Matches) int {
+	var res int
+	for _, v := range m.matchesFound {
+		if v == FoundState {
+			res++
+		}
+	}
+	return res
 }

@@ -8,11 +8,12 @@ import (
 	"testing"
 )
 
-var keywords = []Keyword{
-	Keyword{value: "Go", weight: 3},
-	Keyword{value: "Intern", weight: 4},
-	Keyword{value: "Internship", weight: 4},
-	Keyword{value: "Backend", weight: 3},
+var keywords = []string{
+	"Go",
+	"Intern",
+	"Internship",
+	"Backend",
+	"Sofware Enginner",
 }
 
 func TestFindLinks(t *testing.T) {
@@ -23,15 +24,66 @@ func TestFindLinks(t *testing.T) {
 	//Test: GOOD HTML
 	root, err := html.Parse(strings.NewReader(goodHtml))
 	require.NoError(t, err)
-	links := parser.findLinks(root)
-	assert.Equal(t, 1, len(links))
-	assert.Equal(t, links[0].url, "url_found")
+	parser.findLinks(root)
+	assert.Equal(t, 1, len(parser.linksFound))
+	assert.Equal(t, parser.linksFound[0].url, "url_found")
 
 	//Test: EMPTY HTML
 	root, err = html.Parse(strings.NewReader(emptyHtml))
 	require.NoError(t, err)
-	links = parser.findLinks(root)
-	assert.Equal(t, 1, len(links))
-	assert.Equal(t, links[0].url, "")
+	parser.findLinks(root)
+	assert.Equal(t, 1, len(parser.linksFound))
+	assert.Equal(t, parser.linksFound[0].url, "")
 
+}
+
+func TestKeywordsFound(t *testing.T) {
+	noKeywordsHtml := "<div class=\"section\"><ul><li><a href=\"\"></li></ul></div>"
+	nestedDivHtml := "<div><div>Go</div><div>Intern</div><div><p>Backend</p></div></div>"
+	keywordAsClassNames := "<div><div class=\"Go\"></div><div>Intern</div><div><p class=\"Backend\"></p></div></div>"
+	p := NewParser(keywords)
+
+	//Test: NoKeywords
+	root, err := html.Parse(strings.NewReader(noKeywordsHtml))
+	require.NoError(t, err)
+	p.findMatches(root)
+	for _, keyword := range keywords {
+		v, ok := p.matches.Get(keyword)
+		require.True(t, ok)
+		require.NotEqual(t, FoundState, v)
+		assert.Equal(t, InitializedState, v)
+	}
+
+	//Test: Nested Div
+	root, err = html.Parse(strings.NewReader(nestedDivHtml))
+	require.NoError(t, err)
+	err = p.findMatches(root)
+	require.NoError(t, err)
+	v, ok := p.matches.Get("go")
+	require.True(t, ok)
+	require.Equal(t, FoundState, v)
+	v, ok = p.matches.Get("intern")
+	require.True(t, ok)
+	require.Equal(t, FoundState, v)
+	v, ok = p.matches.Get("backend")
+	require.True(t, ok)
+	require.Equal(t, FoundState, v)
+	v, ok = p.matches.Get("python")
+	require.False(t, ok)
+	require.Equal(t, UninitializedState, v)
+
+	//Test: Keywords As Class Names
+	root, err = html.Parse(strings.NewReader(keywordAsClassNames))
+	require.NoError(t, err)
+	err = p.findMatches(root)
+	require.NoError(t, err)
+	v, ok = p.matches.Get("go")
+	require.True(t, ok)
+	require.Equal(t, v, InitializedState)
+	v, ok = p.matches.Get("backend")
+	require.True(t, ok)
+	require.Equal(t, v, InitializedState)
+	v, ok = p.matches.Get("intern")
+	require.True(t, ok)
+	require.Equal(t, v, FoundState)
 }
