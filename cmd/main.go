@@ -1,16 +1,19 @@
 package main
 
 import (
+	"github.com/evok02/jcrawler/internal/config"
 	"github.com/evok02/jcrawler/internal/parser"
 	"github.com/evok02/jcrawler/internal/worker"
 	"log"
-	"time"
 )
 
 func main() {
-	keywords := []string{"Go", "Internship", "Backend Enginner"}
-	w := worker.NewWorker(time.Second, time.Second)
-	p := parser.NewParser(keywords)
+	cfg, err := config.NewConfig(".")
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	w := worker.NewWorker(cfg.Worker.Delay, cfg.Worker.Timeout)
+	p := parser.NewParser(cfg.Keywords)
 	res, err := w.Fetch("https://at.indeed.com/jobs?q=Backend+Developer&l=%C3%96sterreich&ts=1770748402801&from=searchOnHP&rq=1&rsIdx=0&newcount=18&fromage=last&vjk=24294de2ddda237a")
 	if err != nil {
 		log.Fatal(err.Error())
@@ -19,6 +22,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	log.Printf("Links: %+v\nKeywords: %+v\n", stat.Links, stat.Index)
+	log.Printf("Links: %+v\nAmount of matches: %+v\n", stat.Links, stat.Index)
 
 }

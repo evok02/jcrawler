@@ -1,0 +1,64 @@
+package config
+
+import (
+	"fmt"
+	"github.com/spf13/viper"
+	"time"
+)
+
+type Config struct {
+	Keywords []string
+	Worker   WorkerConfig
+}
+
+type WorkerConfig struct {
+	Timeout time.Duration
+	Delay   time.Duration
+}
+
+func setUpConfig(dir string) {
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(dir)
+}
+
+func NewConfig(dirPath string) (*Config, error) {
+	setUpConfig(dirPath)
+	err := viper.ReadInConfig()
+	if err != nil {
+		return nil, fmt.Errorf("NewConfig: %s", err.Error())
+	}
+	var c Config
+	err = extractValues(&c)
+	if err != nil {
+		return nil, fmt.Errorf("NewConfig: %s", err.Error())
+	}
+	return &c, nil
+}
+
+func extractValues(c *Config) error {
+	extractKeywords(c)
+	err := extractWorkerConfig(&c.Worker)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func extractKeywords(c *Config) {
+	c.Keywords = viper.GetStringSlice("keywords")
+}
+
+func extractWorkerConfig(wc *WorkerConfig) error {
+	timeout, err := time.ParseDuration(viper.GetString("worker.timeout"))
+	if err != nil {
+		return fmt.Errorf("extractValue: %s", err.Error())
+	}
+	delay, err := time.ParseDuration(viper.GetString("worker.delay"))
+	if err != nil {
+		return fmt.Errorf("extractValue: %s", err.Error())
+	}
+	wc.Timeout = timeout
+	wc.Delay = delay
+	return nil
+}
