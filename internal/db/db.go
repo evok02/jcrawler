@@ -1,4 +1,4 @@
-package storage
+package db
 
 import (
 	"context"
@@ -47,5 +47,17 @@ func (s *Storage) Init() error {
 	if err := s.DB.Database("admin").RunCommand(context, bson.D{{Key: "ping", Value: 1}}).Decode(&result); err != nil {
 		return fmt.Errorf("Init: %s", err.Error())
 	}
-	return nil
+	return s.CreateCollection("pages")
+}
+
+func (s *Storage) CreateCollection(name string) error {
+	context, cancel := context.WithTimeout(s.ctx, time.Second)
+	defer cancel()
+	return s.DB.Database("crawler").CreateCollection(context, name)
+}
+
+func (s *Storage) CloseConnection() error {
+	context, cancel := context.WithTimeout(s.ctx, time.Second)
+	defer cancel()
+	return s.DB.Disconnect(context)
 }

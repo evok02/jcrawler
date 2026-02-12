@@ -1,4 +1,4 @@
-package storage
+package db
 
 import (
 	"github.com/evok02/jcrawler/internal/config"
