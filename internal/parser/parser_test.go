@@ -21,14 +21,14 @@ func TestFindLinks(t *testing.T) {
 	emptyHtml := "<div class=\"section\"><ul><li><a href=\"\"></li></ul></div>"         //empty url
 	parser := NewParser(keywords)
 
-	//Test: GOOD HTML
+	// Test: GOOD HTML
 	root, err := html.Parse(strings.NewReader(goodHtml))
 	require.NoError(t, err)
 	parser.findLinks(root)
 	assert.Equal(t, 1, len(parser.linksFound))
 	assert.Equal(t, parser.linksFound[0].url, "url_found")
 
-	//Test: EMPTY HTML
+	// Test: EMPTY HTML
 	root, err = html.Parse(strings.NewReader(emptyHtml))
 	require.NoError(t, err)
 	parser.findLinks(root)
@@ -43,7 +43,7 @@ func TestKeywordsFound(t *testing.T) {
 	keywordAsClassNames := "<div><div class=\"Go\"></div><div>Intern</div><div><p class=\"Backend\"></p></div></div>"
 	p := NewParser(keywords)
 
-	//Test: NoKeywords
+	// Test: NoKeywords
 	root, err := html.Parse(strings.NewReader(noKeywordsHtml))
 	require.NoError(t, err)
 	p.findMatches(root)
@@ -54,7 +54,7 @@ func TestKeywordsFound(t *testing.T) {
 		assert.Equal(t, InitializedState, v)
 	}
 
-	//Test: Nested Div
+	// Test: Nested Div
 	root, err = html.Parse(strings.NewReader(nestedDivHtml))
 	require.NoError(t, err)
 	err = p.findMatches(root)
@@ -72,7 +72,7 @@ func TestKeywordsFound(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, UninitializedState, v)
 
-	//Test: Keywords As Class Names
+	// Test: Keywords As Class Names
 	root, err = html.Parse(strings.NewReader(keywordAsClassNames))
 	require.NoError(t, err)
 	err = p.findMatches(root)

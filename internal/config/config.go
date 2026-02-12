@@ -8,7 +8,12 @@ import (
 
 type Config struct {
 	Keywords []string
-	Worker   WorkerConfig
+	Worker   *WorkerConfig
+	DB       *DBConfig
+}
+
+type DBConfig struct {
+	ConnString string
 }
 
 type WorkerConfig struct {
@@ -28,7 +33,11 @@ func NewConfig(dirPath string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("NewConfig: %s", err.Error())
 	}
-	var c Config
+	var c = Config{
+		Keywords: []string{},
+		Worker:   new(WorkerConfig),
+		DB:       new(DBConfig),
+	}
 	err = extractValues(&c)
 	if err != nil {
 		return nil, fmt.Errorf("NewConfig: %s", err.Error())
@@ -38,10 +47,11 @@ func NewConfig(dirPath string) (*Config, error) {
 
 func extractValues(c *Config) error {
 	extractKeywords(c)
-	err := extractWorkerConfig(&c.Worker)
+	err := extractWorkerConfig(c.Worker)
 	if err != nil {
 		return err
 	}
+	extractDBConfig(c)
 	return nil
 }
 
@@ -60,5 +70,16 @@ func extractWorkerConfig(wc *WorkerConfig) error {
 	}
 	wc.Timeout = timeout
 	wc.Delay = delay
+	return nil
+}
+
+func extractDBConfig(c *Config) error {
+	viper.SetEnvPrefix("db")
+	err := viper.BindEnv("conn_string")
+	if err != nil {
+		return fmt.Errorf("extractDBConfig: %s", err.Error())
+	}
+	connString := viper.GetString("conn_string")
+	c.DB.ConnString = connString
 	return nil
 }

@@ -82,9 +82,10 @@ func NewParser(keywords []string) *Parser {
 }
 
 type ParseResponse struct {
-	mu    *sync.Mutex
-	Index int
-	Links []Link
+	mu      *sync.Mutex
+	Index   int
+	Links   []Link
+	Matches *Matches
 }
 
 var mu = new(sync.Mutex)
@@ -99,9 +100,9 @@ func (p *Parser) Parse(res *http.Response) (*ParseResponse, error) {
 
 	p.findLinks(root)
 	p.findMatches(root)
-	fmt.Printf("%+v\n", p.matches)
 	pres.Index = calculateIndex(p.matches)
 	pres.Links = p.linksFound
+	pres.Matches = p.matches
 	return &pres, nil
 }
 
@@ -123,7 +124,7 @@ func (p *Parser) findMatches(r *html.Node) error {
 	p.matches.InitKeywords(p.keywords)
 	for node := range r.Descendants() {
 		if node.Type == html.TextNode && node.DataAtom == 0 {
-			for _, v := range strings.Fields(node.Data) {
+			for v := range strings.FieldsSeq(node.Data) {
 				if state, ok := p.matches.Get(v); ok && state != FoundState {
 					err := p.matches.SetFound(v)
 					if err != nil {
