@@ -57,12 +57,12 @@ func (m *Matches) InitKeyword(key string) {
 }
 
 type Link struct {
-	url string
+	URL string
 }
 
 func NewLink(url string) Link {
 	return Link{
-		url: url,
+		URL: url,
 	}
 }
 
@@ -83,6 +83,7 @@ func NewParser(keywords []string) *Parser {
 
 type ParseResponse struct {
 	mu      *sync.Mutex
+	Addr    Link
 	Index   int
 	Links   []Link
 	Matches *Matches
@@ -91,7 +92,7 @@ type ParseResponse struct {
 var mu = new(sync.Mutex)
 
 func (p *Parser) Parse(res *http.Response) (*ParseResponse, error) {
-	pres := ParseResponse{mu: mu}
+	pres := ParseResponse{mu: mu, Addr: NewLink(res.Request.URL.String())}
 	root, err := html.Parse(res.Body)
 	defer res.Body.Close()
 	if err != nil {

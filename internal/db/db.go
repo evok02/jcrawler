@@ -14,10 +14,6 @@ type Storage struct {
 	ctx context.Context
 }
 
-type Connecter interface {
-	Connect(opts ...*options.ClientOptions)
-}
-
 func NewStorage(uri string) (*Storage, error) {
 	client, err := connect(uri)
 	if err != nil {

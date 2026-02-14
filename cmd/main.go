@@ -5,12 +5,12 @@ import (
 	"github.com/evok02/jcrawler/internal/db"
 	"github.com/evok02/jcrawler/internal/parser"
 	"github.com/evok02/jcrawler/internal/worker"
-	"log"
 	"github.com/joho/godotenv"
+	"log"
 )
 
 func main() {
-	godotenv.Load()	
+	godotenv.Load()
 	cfg, err := config.NewConfig(".")
 	if err != nil {
 		log.Fatal(err.Error())
@@ -18,7 +18,7 @@ func main() {
 
 	w := worker.NewWorker(cfg.Worker.Delay, cfg.Worker.Timeout)
 	p := parser.NewParser(cfg.Keywords)
-	
+
 	s, err := db.NewStorage(cfg.DB.ConnString)
 	if err != nil {
 		log.Fatal(err.Error())

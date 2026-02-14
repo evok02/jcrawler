@@ -26,14 +26,14 @@ func TestFindLinks(t *testing.T) {
 	require.NoError(t, err)
 	parser.findLinks(root)
 	assert.Equal(t, 1, len(parser.linksFound))
-	assert.Equal(t, parser.linksFound[0].url, "url_found")
+	assert.Equal(t, parser.linksFound[0].URL, "url_found")
 
 	// Test: EMPTY HTML
 	root, err = html.Parse(strings.NewReader(emptyHtml))
 	require.NoError(t, err)
 	parser.findLinks(root)
 	assert.Equal(t, 1, len(parser.linksFound))
-	assert.Equal(t, parser.linksFound[0].url, "")
+	assert.Equal(t, parser.linksFound[0].URL, "")
 
 }
 
