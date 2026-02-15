@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"time"
 )
 
@@ -25,25 +26,20 @@ func (s *Storage) GetPageByID(id string) (*Page, error) {
 	context, cancel := context.WithTimeout(s.ctx, time.Second)
 	defer cancel()
 
-	cursor, err := coll.Find(context, filter)
-	if err != nil {
+	cursor := coll.FindOne(context, filter)
+	if err := cursor.Err(); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ERROR_INVALID_ID
+		}
 		return nil, fmt.Errorf("GetPageByID: %s", err.Error())
 	}
 
-	var res []Page
-	if err := cursor.All(context, &res); err != nil {
+	var res Page
+	if err := cursor.Decode(&res); err != nil {
 		return nil, fmt.Errorf("GetPageByID: %s", err.Error())
 	}
 
-	if len(res) > 1 {
-		return nil, ERROR_MULTIPLE_COPIES_OF_PAGE
-	}
-
-	if len(res) == 0 {
-		return nil, ERROR_INVALID_ID
-	}
-
-	return &res[0], nil
+	return &res, nil
 }
 
 func (s *Storage) InsertPage(p *Page) error {
@@ -52,9 +48,15 @@ func (s *Storage) InsertPage(p *Page) error {
 	context, cancel := context.WithTimeout(s.ctx, time.Second)
 	defer cancel()
 
+	if _, err := s.GetPageByID(p.URLHash); err == nil {
+		s.UpdatePageByID(p.URLHash, p)
+		return nil
+	}
+
 	if _, err := coll.InsertOne(context, p); err != nil {
 		return fmt.Errorf("InsertPage: %s", err.Error())
 	}
+
 	return nil
 }
 
