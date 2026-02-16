@@ -21,12 +21,12 @@ const (
 var ERROR_FOUND_TO_UNINIT_KEYWORD = errors.New("trying to set FoundState to unitialized value")
 
 type Matches struct {
-	matchesFound map[string]matchState
+	MatchesFound map[string]matchState
 }
 
 func NewMatches() *Matches {
 	return &Matches{
-		matchesFound: make(map[string]matchState),
+		MatchesFound: make(map[string]matchState),
 	}
 }
 
@@ -37,7 +37,7 @@ func (m *Matches) InitKeywords(k []string) {
 }
 
 func (m *Matches) Get(key string) (matchState, bool) {
-	if v := m.matchesFound[strings.ToLower(key)]; v == UninitializedState {
+	if v := m.MatchesFound[strings.ToLower(key)]; v == UninitializedState {
 		return UninitializedState, false
 	} else {
 		return v, true
@@ -48,12 +48,12 @@ func (m *Matches) SetFound(key string) error {
 	if _, ok := m.Get(key); !ok {
 		return ERROR_FOUND_TO_UNINIT_KEYWORD
 	}
-	m.matchesFound[strings.ToLower(key)] = FoundState
+	m.MatchesFound[strings.ToLower(key)] = FoundState
 	return nil
 }
 
 func (m *Matches) InitKeyword(key string) {
-	m.matchesFound[strings.ToLower(key)] = InitializedState
+	m.MatchesFound[strings.ToLower(key)] = InitializedState
 }
 
 type Link struct {
@@ -82,11 +82,11 @@ func NewParser(keywords []string) *Parser {
 }
 
 type ParseResponse struct {
-	mu      *sync.Mutex
-	Addr    Link
-	Index   int
 	Links   []Link
+	Addr    Link
+	mu      *sync.Mutex
 	Matches *Matches
+	Index   int
 }
 
 var mu = new(sync.Mutex)
@@ -140,7 +140,7 @@ func (p *Parser) findMatches(r *html.Node) error {
 
 func calculateIndex(m *Matches) int {
 	var res int
-	for _, v := range m.matchesFound {
+	for _, v := range m.MatchesFound {
 		if v == FoundState {
 			res++
 		}

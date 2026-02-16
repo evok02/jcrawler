@@ -41,7 +41,7 @@ func TestIsValid(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, b)
 
-	urlHash, err := f.hashLink("https://www.youtube.com")
+	urlHash, err := f.HashLink("https://www.youtube.com")
 	require.NoError(t, err)
 	var p = db.Page{
 		URLHash:       string(urlHash),

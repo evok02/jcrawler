@@ -10,6 +10,7 @@ type Config struct {
 	Keywords []string
 	Worker   *WorkerConfig
 	DB       *DBConfig
+	Seed     []string
 }
 
 type DBConfig struct {
@@ -52,6 +53,7 @@ func extractValues(c *Config) error {
 		return err
 	}
 	extractDBConfig(c)
+	extractSeed(c)
 	return nil
 }
 
@@ -82,4 +84,8 @@ func extractDBConfig(c *Config) error {
 	connString := viper.GetString("conn_string")
 	c.DB.ConnString = connString
 	return nil
+}
+
+func extractSeed(c *Config) {
+	c.Seed = viper.GetStringSlice("seed")
 }

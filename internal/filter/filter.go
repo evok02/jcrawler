@@ -31,7 +31,7 @@ func (f *Filter) IsValid(link parser.Link, s *db.Storage) (bool, error) {
 		return false, ERROR_MALICIOUS_URL_FORMAT
 	}
 
-	hashed, err := f.hashLink(url)
+	hashed, err := f.HashLink(url)
 	if err != nil {
 		return false, fmt.Errorf("checkTimeout: %s", err.Error())
 	}
@@ -44,7 +44,7 @@ func (f *Filter) isUrl(link string) bool {
 	return validUrl.MatchString(link)
 }
 
-func (f *Filter) hashLink(link string) ([]byte, error) {
+func (f *Filter) HashLink(link string) ([]byte, error) {
 	f.hash.Reset()
 
 	_, err := f.hash.Write([]byte(link))

@@ -2,10 +2,6 @@ package scheduler
 
 import (
 	"context"
-	//"github.com/evok02/jcrawler/internal/worker"
-	//"github.com/evok02/jcrawler/internal/parser"
-	//"github.com/evok02/jcrawler/internal/filter"
-	//"github.com/evok02/jcrawler/internal/db"
 )
 
 type JobQueue struct {
@@ -18,21 +14,31 @@ func NewJobQueue(n int) *JobQueue {
 	}
 }
 
-func (jq *JobQueue)Pop(ctx context.Context, n int) chan string {
+func (jq *JobQueue) Pop(ctx context.Context, n int) chan string {
 	res := make(chan string, n)
 	go func() {
+	outer:
 		for range n {
-			res <- <- jq.queue
+			select {
+			case res <- <-jq.queue:
+			case <-ctx.Done():
+				break outer
+			}
 		}
 		close(res)
 	}()
 	return res
 }
 
-func (jq *JobQueue) Push(n int, in <- chan string) {
+func (jq *JobQueue) Push(ctx context.Context, n int, in <-chan string) {
 	go func() {
+	outer:
 		for range n {
-			jq.queue <- <- in
+			select {
+			case jq.queue <- <-in:
+			case <-ctx.Done():
+				break outer
+			}
 		}
 	}()
 }
