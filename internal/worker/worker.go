@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -24,6 +25,11 @@ type Worker struct {
 	status           workerStatus
 }
 
+type FetchResponse struct {
+	Response *http.Response
+	HostName *url.URL
+}
+
 func NewWorker(delay, timeout time.Duration) *Worker {
 	return &Worker{
 		delay:            delay,
@@ -33,7 +39,7 @@ func NewWorker(delay, timeout time.Duration) *Worker {
 	}
 }
 
-func (w *Worker) Fetch(url string) (*http.Response, error) {
+func (w *Worker) Fetch(url string) (*FetchResponse, error) {
 	req, err := w.createReqeust(url)
 	if err != nil {
 		return nil, fmt.Errorf("Test Job: %s", err)
@@ -46,7 +52,10 @@ func (w *Worker) Fetch(url string) (*http.Response, error) {
 
 	//TODO: implement request after delay
 
-	return res, err
+	return &FetchResponse{
+		HostName: req.URL,
+		Response: res,
+	}, err
 }
 
 func setHeaders(r *http.Request) {
@@ -62,7 +71,6 @@ func setHeaders(r *http.Request) {
 }
 
 func (w *Worker) createReqeust(url string) (*http.Request, error) {
-	w.retriesCount = 0
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("createReqeust: %s", err)
@@ -72,15 +80,9 @@ func (w *Worker) createReqeust(url string) (*http.Request, error) {
 }
 
 func (w *Worker) sendRequest(req *http.Request) (*http.Response, error) {
-	if w.retriesCount > w.maxRetriesAmount {
-		return nil, ERROR_RETRIES_OVER_LIMIT
-	} else if w.retriesCount > 0 {
-		time.Sleep(w.delay)
-	}
 	res, err := new(http.Client).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("sendRequest: %s", err.Error())
 	}
-	w.retriesCount++
 	return res, err
 }

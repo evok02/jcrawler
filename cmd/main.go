@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"github.com/evok02/jcrawler/internal/config"
 	"github.com/evok02/jcrawler/internal/db"
 	"github.com/evok02/jcrawler/internal/filter"
@@ -10,22 +11,24 @@ import (
 	"github.com/evok02/jcrawler/internal/worker"
 	"github.com/joho/godotenv"
 	"log"
-	"net/http"
-	"time"
 	"sync/atomic"
+	"time"
 )
 
-var ctx = context.Background()
+// TODO: fix data integrity
+// TODO: improve filtering to decrease error rate
+var ERROR_INVALID_URL_FORMAT = errors.New("malicious url format")
 
 type App struct {
-	count atomic.Int32
-	ctx context.Context
-	w   *worker.Worker
-	q   *scheduler.JobQueue
-	f   *filter.Filter
-	p   *parser.Parser
-	db  *db.Storage
-	cfg *config.Config
+	count    atomic.Int32
+	errCount atomic.Int32
+	ctx      context.Context
+	w        *worker.Worker
+	q        *scheduler.JobQueue
+	f        *filter.Filter
+	p        *parser.Parser
+	db       *db.Storage
+	cfg      *config.Config
 }
 
 func NewApp(cfgPath string) (*App, error) {
@@ -51,22 +54,23 @@ func NewApp(cfgPath string) (*App, error) {
 	}
 
 	app.db = s
-	app.q = scheduler.NewJobQueue(1)
+	app.q = scheduler.NewJobQueue(10)
 	app.ctx = context.Background()
 	return app, nil
 }
 
-func (app *App) FetcherRoutine() <-chan *http.Response {
-	resChan := make(chan *http.Response)
+func (app *App) FetcherRoutine() <-chan *worker.FetchResponse {
+	resChan := make(chan *worker.FetchResponse)
 	go func() {
 	outer:
 		for {
 			select {
-			case url := <-app.q.Pop(ctx, 1):
+			case url := <-app.q.Pop(app.ctx, 1):
 				go func() {
 					res, err := app.w.Fetch(url)
 					if err != nil {
 						log.Printf("FetcherRoutine: %s", err.Error())
+						app.errCount.Add(1)
 						return
 					}
 					app.count.Add(1)
@@ -81,8 +85,11 @@ func (app *App) FetcherRoutine() <-chan *http.Response {
 	return resChan
 }
 
-func (app *App) ParseResToPage(pres *parser.ParseResponse) *db.Page {
-	hashLink, err := app.f.HashLink(pres.Addr.URL)
+func (app *App) ParseResToPage(pres *parser.ParseResponse) (*db.Page, error) {
+	if pres == nil {
+		return nil, ERROR_INVALID_URL_FORMAT
+	}
+	hashLink, err := app.f.HashLink(pres.Addr.String())
 	if err != nil {
 		log.Printf("ParserRoutine: %s", err.Error())
 	}
@@ -91,14 +98,14 @@ func (app *App) ParseResToPage(pres *parser.ParseResponse) *db.Page {
 		keywords = append(keywords, key)
 	}
 	return &db.Page{
-		URLHash:       string(hashLink),
+		URLHash:       hashLink,
 		Index:         pres.Index,
 		KeywordsFound: keywords,
 		UpdatedAt:     time.Now().UTC(),
-	}
+	}, nil
 }
 
-func (app *App) ParserRoutine(in <-chan *http.Response) <-chan *parser.ParseResponse {
+func (app *App) ParserRoutine(in <-chan *worker.FetchResponse) <-chan *parser.ParseResponse {
 	resChan := make(chan *parser.ParseResponse)
 	go func() {
 	outer:
@@ -110,11 +117,17 @@ func (app *App) ParserRoutine(in <-chan *http.Response) <-chan *parser.ParseResp
 					log.Printf("ParserRoutine: %s", err.Error())
 					continue outer
 				}
-				log.Printf("Parsed %s: %+v\n", pres.Addr.URL, pres)
+				if pres.Index > 2 {
+					log.Printf("Found valuable resource: %s\n", pres.Addr)
+				}
 				resChan <- pres
 				go func() {
-					page := app.ParseResToPage(pres)
-					if err := app.db.InsertPage(page); err != nil {
+					page, err := app.ParseResToPage(pres)
+					if err != nil {
+						log.Printf("ParserRoutine: %s", err.Error())
+					}
+					err = app.db.InsertPage(page)
+					if err != nil {
 						log.Printf("ParserRoutine: %s", err.Error())
 					}
 				}()
@@ -141,7 +154,7 @@ func (app *App) FilterRoutine(in <-chan *parser.ParseResponse) {
 				}()
 				for _, link := range res.Links {
 					if ok, err := app.f.IsValid(link, app.db); ok && err == nil {
-						linkCh <- link.URL
+						linkCh <- link.String()
 					}
 				}
 				close(linkCh)
@@ -177,9 +190,19 @@ func main() {
 	httpResChan := app.FetcherRoutine()
 	parseResChan := app.ParserRoutine(httpResChan)
 	app.FilterRoutine(parseResChan)
-	ticker := time.NewTicker(time.Second * 100)
-	for range ticker.C{
-		log.Printf("Total requests made in 100s: %d\n", app.count.Load())
-	}
-	time.Sleep(600 * time.Second)
+	longTicker := time.NewTicker(time.Second * 100)
+	shortTicker := time.NewTicker(time.Second * 10)
+	go func() {
+		for range longTicker.C {
+			log.Printf("Total requests made in 100s: %d\nFrom which errors: %d\n", app.count.Load(), app.errCount.Load())
+		}
+	}()
+	go func() {
+		for range shortTicker.C {
+			log.Printf("Total request made: %d\nFrom which errors: %d\n", app.count.Load(), app.errCount.Load())
+		}
+	}()
+
+	log.Printf("Running...")
+	time.Sleep(100 * time.Second)
 }

@@ -17,8 +17,8 @@ var keywords = []string{
 }
 
 func TestFindLinks(t *testing.T) {
-	goodHtml := "<div class=\"section\"><ul><li><a href=\"url_found\"></li></ul></div>" //url_found
-	emptyHtml := "<div class=\"section\"><ul><li><a href=\"\"></li></ul></div>"         //empty url
+	goodHtml := "<div class=\"section\"><ul><li><a href=\"google.com\"></li></ul></div>" //url_found
+	emptyHtml := "<div class=\"section\"><ul><li><a href=\"\"></li></ul></div>"          //empty url
 	parser := NewParser(keywords)
 
 	// Test: GOOD HTML
@@ -26,15 +26,13 @@ func TestFindLinks(t *testing.T) {
 	require.NoError(t, err)
 	parser.findLinks(root)
 	assert.Equal(t, 1, len(parser.linksFound))
-	assert.Equal(t, parser.linksFound[0].URL, "url_found")
+	assert.Equal(t, parser.linksFound[0].String(), "google.com")
 
 	// Test: EMPTY HTML
 	root, err = html.Parse(strings.NewReader(emptyHtml))
 	require.NoError(t, err)
 	parser.findLinks(root)
-	assert.Equal(t, 1, len(parser.linksFound))
-	assert.Equal(t, parser.linksFound[0].URL, "")
-
+	assert.Equal(t, 0, len(parser.linksFound))
 }
 
 func TestKeywordsFound(t *testing.T) {

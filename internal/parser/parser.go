@@ -3,9 +3,10 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"github.com/evok02/jcrawler/internal/worker"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
-	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 )
@@ -56,20 +57,11 @@ func (m *Matches) InitKeyword(key string) {
 	m.MatchesFound[strings.ToLower(key)] = InitializedState
 }
 
-type Link struct {
-	URL string
-}
-
-func NewLink(url string) Link {
-	return Link{
-		URL: url,
-	}
-}
-
 type Parser struct {
 	keywords   []string
 	matches    *Matches
-	linksFound []Link
+	linksFound []*url.URL
+	currAddr   *url.URL
 }
 
 func NewParser(keywords []string) *Parser {
@@ -82,8 +74,8 @@ func NewParser(keywords []string) *Parser {
 }
 
 type ParseResponse struct {
-	Links   []Link
-	Addr    Link
+	Links   []*url.URL
+	Addr    *url.URL
 	mu      *sync.Mutex
 	Matches *Matches
 	Index   int
@@ -91,13 +83,18 @@ type ParseResponse struct {
 
 var mu = new(sync.Mutex)
 
-func (p *Parser) Parse(res *http.Response) (*ParseResponse, error) {
-	pres := ParseResponse{mu: mu, Addr: NewLink(res.Request.URL.String())}
-	root, err := html.Parse(res.Body)
-	defer res.Body.Close()
+func (p *Parser) Parse(fres *worker.FetchResponse) (*ParseResponse, error) {
+	pres := ParseResponse{mu: mu, Addr: fres.HostName}
+	p.currAddr = fres.HostName
+	root, err := html.Parse(fres.Response.Body)
+	p.currAddr = fres.HostName
+	defer fres.Response.Body.Close()
 	if err != nil {
 		return nil, fmt.Errorf("Parse: %s", err.Error())
 	}
+
+	// TODO: add refrence resolve for urls
+	// TODO: filter out empty urls
 
 	p.findLinks(root)
 	p.findMatches(root)
@@ -108,12 +105,20 @@ func (p *Parser) Parse(res *http.Response) (*ParseResponse, error) {
 }
 
 func (p *Parser) findLinks(root *html.Node) {
-	p.linksFound = []Link{}
+	p.linksFound = []*url.URL{}
 	for node := range root.Descendants() {
 		if node.Type == html.ElementNode && node.DataAtom == atom.A {
 			for _, a := range node.Attr {
-				if a.Key == "href" {
-					p.linksFound = append(p.linksFound, NewLink(a.Val))
+				if a.Key == "href" && len(a.Val) > 0 {
+					parsed, err := url.Parse(a.Val)
+					if err != nil {
+						continue
+					}
+					if a.Val[0] == '/' {
+						p.linksFound = append(p.linksFound, parsed.ResolveReference(p.currAddr))
+						continue
+					}
+					p.linksFound = append(p.linksFound, parsed)
 				}
 			}
 		}

@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/evok02/jcrawler/internal/db"
-	"github.com/evok02/jcrawler/internal/parser"
 	"hash"
-	"regexp"
+	"net/url"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -15,6 +16,7 @@ var ERROR_MALICIOUS_URL_FORMAT = errors.New("malicious url format")
 
 type Filter struct {
 	timeout time.Duration
+	mu      sync.Mutex
 	hash    hash.Hash
 }
 
@@ -25,13 +27,30 @@ func NewFilter(t time.Duration) *Filter {
 	}
 }
 
-func (f *Filter) IsValid(link parser.Link, s *db.Storage) (bool, error) {
-	url := link.URL
-	if !f.isUrl(url) {
+func (f *Filter) IsValid(link *url.URL, s *db.Storage) (bool, error) {
+	parsedURLStr := link.String()
+
+	if parsedURLStr == "" {
 		return false, ERROR_MALICIOUS_URL_FORMAT
 	}
 
-	hashed, err := f.HashLink(url)
+	if strings.HasPrefix(parsedURLStr, "#") {
+		return false, ERROR_MALICIOUS_URL_FORMAT
+	}
+
+	if strings.HasPrefix(parsedURLStr, "file:") {
+		return false, ERROR_MALICIOUS_URL_FORMAT
+	}
+
+	if strings.HasPrefix(parsedURLStr, "javasript:") {
+		return false, ERROR_MALICIOUS_URL_FORMAT
+	}
+
+	if strings.HasPrefix(parsedURLStr, "mailto:") {
+		return false, ERROR_MALICIOUS_URL_FORMAT
+	}
+
+	hashed, err := f.HashLink(normalizeURL(parsedURLStr))
 	if err != nil {
 		return false, fmt.Errorf("checkTimeout: %s", err.Error())
 	}
@@ -39,20 +58,17 @@ func (f *Filter) IsValid(link parser.Link, s *db.Storage) (bool, error) {
 	return f.checkTimeout(s, string(hashed)), nil
 }
 
-func (f *Filter) isUrl(link string) bool {
-	validUrl := regexp.MustCompile(`^(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/|\/|\/\/)?[A-z0-9_-]*?[:]?[A-z0-9_-]*?[@]?[A-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?$`)
-	return validUrl.MatchString(link)
-}
+func (f *Filter) HashLink(link string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
-func (f *Filter) HashLink(link string) ([]byte, error) {
 	f.hash.Reset()
-
 	_, err := f.hash.Write([]byte(link))
 	if err != nil {
-		return nil, fmt.Errorf("hashLink: %s", err.Error())
+		return "", fmt.Errorf("hashLink: %s", err.Error())
 	}
 
-	return f.hash.Sum(nil), nil
+	return string(f.hash.Sum(nil)), nil
 }
 
 func (f *Filter) checkTimeout(s *db.Storage, id string) bool {
@@ -61,10 +77,14 @@ func (f *Filter) checkTimeout(s *db.Storage, id string) bool {
 		return true
 	}
 
-	fmt.Printf("Id: %+v\nDate: %+v\n", id, p.UpdatedAt)
 	if time.Since(p.UpdatedAt) < f.timeout {
 		return false
 	}
 
 	return true
+}
+
+func normalizeURL(url string) string {
+	normalized := strings.TrimSuffix(url, "/")
+	return normalized
 }

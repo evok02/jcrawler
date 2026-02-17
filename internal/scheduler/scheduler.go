@@ -5,12 +5,12 @@ import (
 )
 
 type JobQueue struct {
-	queue chan string
+	Queue chan string
 }
 
 func NewJobQueue(n int) *JobQueue {
 	return &JobQueue{
-		queue: make(chan string, n),
+		Queue: make(chan string, n),
 	}
 }
 
@@ -20,7 +20,7 @@ func (jq *JobQueue) Pop(ctx context.Context, n int) chan string {
 	outer:
 		for range n {
 			select {
-			case res <- <-jq.queue:
+			case res <- <-jq.Queue:
 			case <-ctx.Done():
 				break outer
 			}
@@ -35,7 +35,7 @@ func (jq *JobQueue) Push(ctx context.Context, n int, in <-chan string) {
 	outer:
 		for range n {
 			select {
-			case jq.queue <- <-in:
+			case jq.Queue <- <-in:
 			case <-ctx.Done():
 				break outer
 			}

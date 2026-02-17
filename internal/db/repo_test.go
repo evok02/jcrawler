@@ -89,3 +89,23 @@ func TestUpdatePage(t *testing.T) {
 	assert.Equal(t, []string{"google", "com", "ua"}, res.KeywordsFound)
 	assert.Equal(t, 3, res.Index)
 }
+
+func TestGetAllPages(t *testing.T) {
+	err := godotenv.Load("./../../.env")
+	require.NoError(t, err)
+
+	cfg, err := config.NewConfig("./../../")
+	require.NoError(t, err)
+
+	s, err := NewStorage(cfg.DB.ConnString)
+	require.NoError(t, err)
+	defer s.CloseConnection()
+
+	err = s.Init()
+	require.NoError(t, err)
+
+	//pages, err := s.GetAllPages()
+	//require.NoError(t, err)
+
+	//assert.Greater(t, len(pages), 0)
+}

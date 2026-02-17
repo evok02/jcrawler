@@ -11,6 +11,8 @@ import (
 
 var ERROR_MULTIPLE_COPIES_OF_PAGE = errors.New("found to many entries with the same id")
 var ERROR_INVALID_ID = errors.New("couldn't find entry with this id")
+var ERROR_EMPTY_COLLECION = errors.New("empty collection of documents")
+var ERROR_UNSUCCESSFUL_TRANSACTION = errors.New("couldnt execute transaction")
 
 type Page struct {
 	URLHash       string `bson:"url_hash_id"`
@@ -42,6 +44,30 @@ func (s *Storage) GetPageByID(id string) (*Page, error) {
 	return &res, nil
 }
 
+func (s *Storage) GetAllPages() ([]Page, error) {
+	coll := s.DB.Database("cralwer").Collection("pages")
+	context, cancel := context.WithTimeout(s.ctx, time.Second)
+	defer cancel()
+
+	cursor, err := coll.Find(context, bson.M{})
+	if err != nil {
+		return nil, fmt.Errorf("GetAllPages: %s", err)
+	}
+
+	if err := cursor.Err(); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ERROR_EMPTY_COLLECION
+		}
+		return nil, fmt.Errorf("GetAllPages: %s", err.Error())
+	}
+
+	var pages []Page
+	if err := cursor.All(context, &pages); err != nil {
+		return nil, fmt.Errorf("GetAllPages: %s", err.Error())
+	}
+	return pages, nil
+}
+
 func (s *Storage) InsertPage(p *Page) error {
 	coll := s.DB.Database("crawler").Collection("pages")
 
@@ -53,10 +79,16 @@ func (s *Storage) InsertPage(p *Page) error {
 		return nil
 	}
 
-	if _, err := coll.InsertOne(context, p); err != nil {
+	res, err := coll.InsertOne(context, p)
+	if err != nil {
 		return fmt.Errorf("InsertPage: %s", err.Error())
 	}
 
+	if res.InsertedID == 0 {
+		return ERROR_UNSUCCESSFUL_TRANSACTION
+	}
+
+	fmt.Printf("%v\n", res.InsertedID)
 	return nil
 }
 
