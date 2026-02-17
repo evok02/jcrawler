@@ -24,4 +24,4 @@ test: build
 	@go test ./...
 
 debug: build-debug
-	@dlv exec ./debug/out
+	@dlv exec ./debug/debug_out

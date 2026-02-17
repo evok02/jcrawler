@@ -2,6 +2,7 @@ package filter
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/evok02/jcrawler/internal/db"
@@ -68,7 +69,7 @@ func (f *Filter) HashLink(link string) (string, error) {
 		return "", fmt.Errorf("hashLink: %s", err.Error())
 	}
 
-	return string(f.hash.Sum(nil)), nil
+	return hex.EncodeToString(f.hash.Sum(nil)), nil
 }
 
 func (f *Filter) checkTimeout(s *db.Storage, id string) bool {

@@ -79,7 +79,12 @@ func (s *Storage) InsertPage(p *Page) error {
 		return nil
 	}
 
-	res, err := coll.InsertOne(context, p)
+	doc, err := bson.Marshal(p)
+	if err != nil {
+		return fmt.Errorf("InsertPage: %s", err.Error())
+	}
+
+	res, err := coll.InsertOne(context, doc)
 	if err != nil {
 		return fmt.Errorf("InsertPage: %s", err.Error())
 	}
