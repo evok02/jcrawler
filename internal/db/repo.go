@@ -16,6 +16,7 @@ var ERROR_UNSUCCESSFUL_TRANSACTION = errors.New("couldnt execute transaction")
 
 type Page struct {
 	URLHash       string `bson:"url_hash_id"`
+	URL           string
 	Index         int
 	KeywordsFound []string  `bson:"keywords_found"`
 	UpdatedAt     time.Time `bson:"updated_at"`
@@ -93,7 +94,6 @@ func (s *Storage) InsertPage(p *Page) error {
 		return ERROR_UNSUCCESSFUL_TRANSACTION
 	}
 
-	fmt.Printf("%v\n", res.InsertedID)
 	return nil
 }
 

@@ -30,9 +30,6 @@ func TestInsertGetPage(t *testing.T) {
 	err = s.Init()
 	require.NoError(t, err)
 
-	err = s.DeletePageByID("google.com")
-	require.NoError(t, err)
-
 	err = s.InsertPage(&p)
 	require.NoError(t, err)
 

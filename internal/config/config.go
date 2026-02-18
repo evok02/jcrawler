@@ -11,6 +11,11 @@ type Config struct {
 	Worker   *WorkerConfig
 	DB       *DBConfig
 	Seed     []string
+	Log      *LogConfig
+}
+
+type LogConfig struct {
+	Path string
 }
 
 type DBConfig struct {
@@ -38,6 +43,7 @@ func NewConfig(dirPath string) (*Config, error) {
 		Keywords: []string{},
 		Worker:   new(WorkerConfig),
 		DB:       new(DBConfig),
+		Log:      new(LogConfig),
 	}
 	err = extractValues(&c)
 	if err != nil {
@@ -54,6 +60,7 @@ func extractValues(c *Config) error {
 	}
 	extractDBConfig(c)
 	extractSeed(c)
+	extractLogConfig(c)
 	return nil
 }
 
@@ -88,4 +95,8 @@ func extractDBConfig(c *Config) error {
 
 func extractSeed(c *Config) {
 	c.Seed = viper.GetStringSlice("seed")
+}
+
+func extractLogConfig(c *Config) {
+	c.Log.Path = viper.GetString("log.path")
 }

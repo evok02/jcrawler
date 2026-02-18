@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/evok02/jcrawler/internal/config"
 	"github.com/evok02/jcrawler/internal/db"
 	"github.com/evok02/jcrawler/internal/filter"
@@ -11,6 +12,8 @@ import (
 	"github.com/evok02/jcrawler/internal/worker"
 	"github.com/joho/godotenv"
 	"log"
+	"log/slog"
+	"os"
 	"sync/atomic"
 	"time"
 )
@@ -29,6 +32,7 @@ type App struct {
 	p        *parser.Parser
 	db       *db.Storage
 	cfg      *config.Config
+	logger   *slog.Logger
 }
 
 func NewApp(cfgPath string) (*App, error) {
@@ -67,9 +71,13 @@ func (app *App) FetcherRoutine() <-chan *worker.FetchResponse {
 			select {
 			case url := <-app.q.Pop(app.ctx, 1):
 				go func() {
+					start := time.Now()
 					res, err := app.w.Fetch(url)
 					if err != nil {
-						log.Printf("FetcherRoutine: %s", err.Error())
+						app.logger.Error("FetcherRoutine: %s"+err.Error(),
+							slog.String("method", "GET"),
+							slog.String("url", url),
+							slog.Duration("response_time", time.Since(start)))
 						app.errCount.Add(1)
 						return
 					}
@@ -86,19 +94,22 @@ func (app *App) FetcherRoutine() <-chan *worker.FetchResponse {
 }
 
 func (app *App) ParseResToPage(pres *parser.ParseResponse) (*db.Page, error) {
-	if pres == nil {
+	if pres.Addr == nil {
 		return nil, ERROR_INVALID_URL_FORMAT
 	}
 	hashLink, err := app.f.HashLink(pres.Addr.String())
 	if err != nil {
-		log.Printf("ParserRoutine: %s", err.Error())
+		return nil, fmt.Errorf("ParseResToPage: %s", err.Error())
 	}
 	keywords := []string{}
-	for key := range pres.Matches.MatchesFound {
-		keywords = append(keywords, key)
+	for k, v := range pres.Matches.MatchesFound {
+		if v == parser.FoundState {
+			keywords = append(keywords, k)
+		}
 	}
 	return &db.Page{
 		URLHash:       hashLink,
+		URL:           pres.Addr.String(),
 		Index:         pres.Index,
 		KeywordsFound: keywords,
 		UpdatedAt:     time.Now().UTC(),
@@ -107,14 +118,19 @@ func (app *App) ParseResToPage(pres *parser.ParseResponse) (*db.Page, error) {
 
 func (app *App) ParserRoutine(in <-chan *worker.FetchResponse) <-chan *parser.ParseResponse {
 	resChan := make(chan *parser.ParseResponse)
+	pres := &parser.ParseResponse{}
+	res := &worker.FetchResponse{}
+	var err error
 	go func() {
 	outer:
 		for {
 			select {
-			case res := <-in:
-				pres, err := app.p.Parse(res)
+			case res = <-in:
+				pres, err = app.p.Parse(res)
 				if err != nil {
-					log.Printf("ParserRoutine: %s", err.Error())
+					slog.Error("ParserRoutine: %s"+err.Error(),
+						slog.Any("res", res))
+					app.errCount.Add(1)
 					continue outer
 				}
 				if pres.Index > 2 {
@@ -124,11 +140,15 @@ func (app *App) ParserRoutine(in <-chan *worker.FetchResponse) <-chan *parser.Pa
 				go func() {
 					page, err := app.ParseResToPage(pres)
 					if err != nil {
-						log.Printf("ParserRoutine: %s", err.Error())
+						slog.Error("ParserRoutine: %s"+err.Error(),
+							slog.Any("page", page))
+						app.errCount.Add(1)
 					}
 					err = app.db.InsertPage(page)
 					if err != nil {
-						log.Printf("ParserRoutine: %s", err.Error())
+						slog.Error("ParserRoutine: %s"+err.Error(),
+							slog.Any("page", page))
+						app.errCount.Add(1)
 					}
 				}()
 			case <-app.ctx.Done():
@@ -185,6 +205,14 @@ func main() {
 	cancelContext, cancel := context.WithCancel(app.ctx)
 	defer cancel()
 	defer app.db.CloseConnection()
+	f, err := os.OpenFile(app.cfg.Log.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	defer f.Close()
+	app.logger = slog.New(slog.NewJSONHandler(f, &slog.HandlerOptions{
+		AddSource: true,
+	}))
 
 	app.q.Push(cancelContext, len(app.cfg.Seed), app.PushSeed())
 	httpResChan := app.FetcherRoutine()

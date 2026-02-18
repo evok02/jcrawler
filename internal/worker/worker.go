@@ -3,8 +3,10 @@ package worker
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 )
 
@@ -23,11 +25,21 @@ type Worker struct {
 	retriesCount     int
 	maxRetriesAmount int
 	status           workerStatus
+	logger           *slog.Logger
 }
 
 type FetchResponse struct {
 	Response *http.Response
 	HostName *url.URL
+}
+
+func (fr *FetchResponse) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("url", fr.HostName.String()),
+		slog.Group("response",
+			slog.String("status", fr.Response.Status)),
+		slog.Int64("content_length", fr.Response.ContentLength),
+	)
 }
 
 func NewWorker(delay, timeout time.Duration) *Worker {
@@ -36,6 +48,7 @@ func NewWorker(delay, timeout time.Duration) *Worker {
 		timeout:          timeout,
 		retriesCount:     0,
 		maxRetriesAmount: 3,
+		logger:           slog.New(slog.NewJSONHandler(os.Stdout, nil)),
 	}
 }
 
@@ -59,7 +72,7 @@ func (w *Worker) Fetch(url string) (*FetchResponse, error) {
 }
 
 func setHeaders(r *http.Request) {
-	r.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	r.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
 	r.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
 	r.Header.Set("Accept-Language", "en-US,en;q=0.5")
 	r.Header.Set("Accept-Encoding", "utf-8")
