@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"log"
 	"time"
 )
 
@@ -15,9 +16,9 @@ var ERROR_EMPTY_COLLECION = errors.New("empty collection of documents")
 var ERROR_UNSUCCESSFUL_TRANSACTION = errors.New("couldnt execute transaction")
 
 type Page struct {
-	URLHash       string `bson:"url_hash_id"`
-	URL           string
-	Index         int
+	URLHash       string    `bson:"url_hash_id"`
+	URL           string    `bson:"url"`
+	Index         int       `bson:"index"`
 	KeywordsFound []string  `bson:"keywords_found"`
 	UpdatedAt     time.Time `bson:"updated_at"`
 }
@@ -93,6 +94,7 @@ func (s *Storage) InsertPage(p *Page) error {
 	if res.InsertedID == 0 {
 		return ERROR_UNSUCCESSFUL_TRANSACTION
 	}
+	log.Printf("Added new resource: %s\n", p.URL)
 
 	return nil
 }

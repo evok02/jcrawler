@@ -114,7 +114,7 @@ func (p *Parser) findLinks(root *html.Node) {
 					if err != nil {
 						continue
 					}
-					if a.Val[0] == '/' {
+					if a.Val[0] == '/' && len(a.Val) > 1 {
 						p.linksFound = append(p.linksFound, parsed.ResolveReference(p.currAddr))
 						continue
 					}

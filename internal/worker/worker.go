@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 
 type workerStatus int
 
+var ERROR_RESPONSE_TIME_OVER_LIMIT = errors.New("response time is over the limit")
 var ERROR_RETRIES_OVER_LIMIT = errors.New("worker reached maximum amount of returies")
 
 const (
@@ -52,23 +54,27 @@ func NewWorker(delay, timeout time.Duration) *Worker {
 	}
 }
 
-func (w *Worker) Fetch(url string) (*FetchResponse, error) {
+func (w *Worker) Fetch(ctx context.Context, url string) (*FetchResponse, error) {
 	req, err := w.createReqeust(url)
 	if err != nil {
-		return nil, fmt.Errorf("Test Job: %s", err)
+		return nil, fmt.Errorf("Fetch %s", err)
 	}
+	resChan, errChan := w.sendRequest(req)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ERROR_RESPONSE_TIME_OVER_LIMIT
 
-	res, err := w.sendRequest(req)
-	if err != nil {
-		return nil, fmt.Errorf("Test Job: %s", err)
+		case err := <-errChan:
+			return nil, err
+
+		case res := <-resChan:
+			return &FetchResponse{
+				HostName: req.URL,
+				Response: res,
+			}, nil
+		}
 	}
-
-	//TODO: implement request after delay
-
-	return &FetchResponse{
-		HostName: req.URL,
-		Response: res,
-	}, err
 }
 
 func setHeaders(r *http.Request) {
@@ -92,10 +98,17 @@ func (w *Worker) createReqeust(url string) (*http.Request, error) {
 	return req, nil
 }
 
-func (w *Worker) sendRequest(req *http.Request) (*http.Response, error) {
-	res, err := new(http.Client).Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("sendRequest: %s", err.Error())
-	}
-	return res, err
+func (w *Worker) sendRequest(req *http.Request) (chan *http.Response, chan error) {
+	resChan := make(chan *http.Response)
+	errChan := make(chan error)
+
+	go func() {
+		res, err := new(http.Client).Do(req)
+		if err != nil {
+			errChan <- fmt.Errorf("sendRequest: %s", err.Error())
+		}
+		resChan <- res
+	}()
+
+	return resChan, errChan
 }

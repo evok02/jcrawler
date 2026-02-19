@@ -31,7 +31,7 @@ func NewFilter(t time.Duration) *Filter {
 func (f *Filter) IsValid(link *url.URL, s *db.Storage) (bool, error) {
 	parsedURLStr := link.String()
 
-	if parsedURLStr == "" {
+	if parsedURLStr == "/" {
 		return false, ERROR_MALICIOUS_URL_FORMAT
 	}
 

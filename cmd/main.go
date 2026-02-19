@@ -18,9 +18,9 @@ import (
 	"time"
 )
 
-// TODO: fix data integrity
-// TODO: improve filtering to decrease error rate
 var ERROR_INVALID_URL_FORMAT = errors.New("malicious url format")
+
+const MAX_AMOUT_ROUTINES = 250
 
 type App struct {
 	count    atomic.Int32
@@ -65,23 +65,32 @@ func NewApp(cfgPath string) (*App, error) {
 
 func (app *App) FetcherRoutine() <-chan *worker.FetchResponse {
 	resChan := make(chan *worker.FetchResponse)
+	sem := make(chan struct{}, MAX_AMOUT_ROUTINES)
 	go func() {
 	outer:
 		for {
 			select {
 			case url := <-app.q.Pop(app.ctx, 1):
+				sem <- struct{}{}
 				go func() {
+					defer func() { <-sem }()
+					context, cancel := context.WithTimeout(context.Background(), time.Second*10)
+					defer cancel()
 					start := time.Now()
-					res, err := app.w.Fetch(url)
+					res, err := app.w.Fetch(context, url)
 					if err != nil {
 						app.logger.Error("FetcherRoutine: %s"+err.Error(),
 							slog.String("method", "GET"),
 							slog.String("url", url),
-							slog.Duration("response_time", time.Since(start)))
+							slog.Float64("response_time", time.Since(start).Seconds()))
 						app.errCount.Add(1)
 						return
 					}
 					app.count.Add(1)
+					app.logger.Info("resource was fetched successfuly",
+						slog.String("method", "GET"),
+						slog.String("url", url),
+						slog.Float64("response_time", time.Since(start).Seconds()))
 					resChan <- res
 				}()
 			case <-app.ctx.Done():
@@ -90,6 +99,7 @@ func (app *App) FetcherRoutine() <-chan *worker.FetchResponse {
 		}
 		close(resChan)
 	}()
+
 	return resChan
 }
 
@@ -133,7 +143,7 @@ func (app *App) ParserRoutine(in <-chan *worker.FetchResponse) <-chan *parser.Pa
 					app.errCount.Add(1)
 					continue outer
 				}
-				if pres.Index > 2 {
+				if pres.Index > 5 {
 					log.Printf("Found valuable resource: %s\n", pres.Addr)
 				}
 				resChan <- pres
@@ -205,7 +215,7 @@ func main() {
 	cancelContext, cancel := context.WithCancel(app.ctx)
 	defer cancel()
 	defer app.db.CloseConnection()
-	f, err := os.OpenFile(app.cfg.Log.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(app.cfg.Log.Path, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
