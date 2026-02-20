@@ -10,9 +10,14 @@ import (
 )
 
 // TODO: add docker-compose file
+
 // TODO: try to identify issue with "" url
+
 // TODO: added weighted indexing
+
 // TODO: improve filtering based on previous indexing sum
+
+// TODO: add .github file
 
 func main() {
 	app, err := app.NewApp(".")

@@ -93,9 +93,6 @@ func (p *Parser) Parse(fres *worker.FetchResponse) (*ParseResponse, error) {
 		return nil, fmt.Errorf("Parse: %s", err.Error())
 	}
 
-	// TODO: add refrence resolve for urls
-	// TODO: filter out empty urls
-
 	p.findLinks(root)
 	p.findMatches(root)
 	pres.Index = calculateIndex(p.matches)

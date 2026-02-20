@@ -4,6 +4,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/html"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -17,16 +18,26 @@ var keywords = []string{
 }
 
 func TestFindLinks(t *testing.T) {
-	goodHtml := "<div class=\"section\"><ul><li><a href=\"google.com\"></li></ul></div>" //url_found
-	emptyHtml := "<div class=\"section\"><ul><li><a href=\"\"></li></ul></div>"          //empty url
+	goodHtml := "<div class=\"section\"><ul><li><a href=\"www.youtube.com\"></li></ul></div>" //empty url
+	emptyHtml := "<div class=\"section\"><ul><li><a href=\"\"></li></ul></div>"               //empty url
+	sameHtml := "<div class=\"section\"><ul><li><a href=\"www.google.com\"></li></ul></div>"  //empty url
 	parser := NewParser(keywords)
+	curr, err := url.Parse("www.google.com")
+	require.NoError(t, err)
+	parser.currAddr = curr
 
 	// Test: GOOD HTML
 	root, err := html.Parse(strings.NewReader(goodHtml))
 	require.NoError(t, err)
 	parser.findLinks(root)
 	assert.Equal(t, 1, len(parser.linksFound))
-	assert.Equal(t, parser.linksFound[0].String(), "google.com")
+	assert.Equal(t, parser.linksFound[0].String(), "www.youtube.com")
+
+	// Test: SAME HTML
+	root, err = html.Parse(strings.NewReader(sameHtml))
+	require.NoError(t, err)
+	parser.findLinks(root)
+	assert.Equal(t, 0, len(parser.linksFound))
 
 	// Test: EMPTY HTML
 	root, err = html.Parse(strings.NewReader(emptyHtml))
