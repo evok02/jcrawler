@@ -20,7 +20,7 @@ import (
 
 var ERROR_INVALID_URL_FORMAT = errors.New("malicious url format")
 
-const MAX_AMOUT_ROUTINES = 250
+const MAX_AMOUT_ROUTINES = 200
 
 type App struct {
 	count    atomic.Int32
@@ -103,6 +103,7 @@ func (app *App) FetcherRoutine() <-chan *worker.FetchResponse {
 	return resChan
 }
 
+// TODO: find the bug with nil reference
 func (app *App) ParseResToPage(pres *parser.ParseResponse) (*db.Page, error) {
 	if pres.Addr == nil {
 		return nil, ERROR_INVALID_URL_FORMAT
