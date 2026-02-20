@@ -58,7 +58,7 @@ func NewApp(cfgPath string) (*App, error) {
 	}
 
 	app.DB = s
-	app.Queue = scheduler.NewJobQueue(10)
+	app.Queue = scheduler.NewJobQueue(100)
 	app.Ctx = context.Background()
 	return app, nil
 }
