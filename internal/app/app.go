@@ -17,21 +17,22 @@ import (
 	"time"
 )
 
-const MAX_AMOUT_ROUTINES = 200
+const MAX_AMOUT_ROUTINES = 240
 
 var ERROR_INVALID_URL_FORMAT = errors.New("malicious url format")
 
 type App struct {
-	Count    atomic.Int32
-	ErrCount atomic.Int32
-	Ctx      context.Context
-	Worker   *worker.Worker
-	Queue    *scheduler.JobQueue
-	Filter   *filter.Filter
-	Parser   *parser.Parser
-	DB       *db.Storage
-	Cfg      *config.Config
-	Logger   *slog.Logger
+	Count      atomic.Int32
+	ErrCount   atomic.Int32
+	EntryCount atomic.Int32
+	Ctx        context.Context
+	Worker     *worker.Worker
+	Queue      *scheduler.JobQueue
+	Filter     *filter.Filter
+	Parser     *parser.Parser
+	DB         *db.Storage
+	Cfg        *config.Config
+	Logger     *slog.Logger
 }
 
 func NewApp(cfgPath string) (*App, error) {
@@ -109,7 +110,7 @@ func (app *App) handleBadResponse(url string, start time.Time, err error) {
 		slog.Float64("response_time", time.Since(start).Seconds()))
 }
 
-func (app *App) ParseResToPage(pres *parser.ParseResponse) (*db.Page, error) {
+func (app *App) parseResToPage(pres *parser.ParseResponse) (*db.Page, error) {
 	if pres.Addr == nil {
 		return nil, ERROR_INVALID_URL_FORMAT
 	}
@@ -165,18 +166,21 @@ func (app *App) handleBadPage(res *worker.FetchResponse, err error) {
 }
 
 func (app *App) createEntry(pres *parser.ParseResponse) {
-	page, err := app.ParseResToPage(pres)
+	page, err := app.parseResToPage(pres)
 	if err != nil {
 		slog.Error("ParserRoutine: %s"+err.Error(),
 			slog.Any("page", page))
 		app.ErrCount.Add(1)
+		return
 	}
 	err = app.DB.InsertPage(page)
 	if err != nil {
 		slog.Error("ParserRoutine: %s"+err.Error(),
 			slog.Any("page", page))
 		app.ErrCount.Add(1)
+		return
 	}
+	app.EntryCount.Add(1)
 }
 
 func (app *App) FilterRoutine(in <-chan *parser.ParseResponse) {

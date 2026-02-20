@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+// TODO: add docker-compose file
+// TODO: try to identify issue with "" url
+// TODO: added weighted indexing
+// TODO: improve filtering based on previous indexing sum
+
 func main() {
 	app, err := app.NewApp(".")
 	if err != nil {
@@ -34,17 +39,19 @@ func main() {
 	longTicker := time.NewTicker(time.Second * 100)
 	shortTicker := time.NewTicker(time.Second * 10)
 	go func() {
+		count := 1
 		for range longTicker.C {
-			log.Printf("Total requests made in 100s: %d\nFrom which errors: %d\n",
-				app.Count.Load(), app.ErrCount.Load())
+			log.Printf("Total requests made in %d s: %d\nErrors made: %d\nEntries made: %d\n",
+				count*100, app.Count.Load(), app.ErrCount.Load(), app.EntryCount.Load())
+			count++
 		}
 	}()
 	go func() {
 		for range shortTicker.C {
-			log.Printf("Total request made: %d\nFrom which errors: %d\n",
-				app.Count.Load(), app.ErrCount.Load())
+			log.Printf("Total request made: %d\nErrors made: %d\nEntries made: %d\n",
+				app.Count.Load(), app.ErrCount.Load(), app.EntryCount.Load())
 		}
 	}()
 	log.Printf("Running...")
-	time.Sleep(100 * time.Second)
+	time.Sleep(10 * time.Minute)
 }
