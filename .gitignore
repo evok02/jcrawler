@@ -3,3 +3,6 @@ bin/
 config.yaml
 log/*.json
 debug/
+internal/logger/logger_test.go
+internal/db/repo_test.go
+internal/internaldb/db_test.go
