@@ -4,6 +4,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/html"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -20,6 +21,9 @@ func TestFindLinks(t *testing.T) {
 	goodHtml := "<div class=\"section\"><ul><li><a href=\"google.com\"></li></ul></div>" //url_found
 	emptyHtml := "<div class=\"section\"><ul><li><a href=\"\"></li></ul></div>"          //empty url
 	parser := NewParser(keywords)
+	url, err := url.Parse("https://yahoo.com")
+	require.NoError(t, err)
+	parser.currAddr = url
 
 	// Test: GOOD HTML
 	root, err := html.Parse(strings.NewReader(goodHtml))
