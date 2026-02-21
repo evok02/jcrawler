@@ -31,6 +31,19 @@ func NewFilter(t time.Duration) *Filter {
 func (f *Filter) IsValid(link *url.URL, s *db.Storage) (bool, error) {
 	parsedURLStr := link.String()
 
+	if ok, err := filterLink(parsedURLStr); err != nil {
+		return ok, fmt.Errorf("IsValid: %s", err)
+	}
+
+	hashed, err := f.HashLink(normalizeURL(parsedURLStr))
+	if err != nil {
+		return false, fmt.Errorf("IsValid: %s", err.Error())
+	}
+
+	return f.checkTimeout(s, string(hashed)), nil
+}
+
+func filterLink(parsedURLStr string) (bool, error) {
 	if parsedURLStr == "/" {
 		return false, ERROR_MALICIOUS_URL_FORMAT
 	}
@@ -43,7 +56,7 @@ func (f *Filter) IsValid(link *url.URL, s *db.Storage) (bool, error) {
 		return false, ERROR_MALICIOUS_URL_FORMAT
 	}
 
-	if strings.HasPrefix(parsedURLStr, "javasript:") {
+	if strings.HasPrefix(parsedURLStr, "javascript:") {
 		return false, ERROR_MALICIOUS_URL_FORMAT
 	}
 
@@ -51,12 +64,7 @@ func (f *Filter) IsValid(link *url.URL, s *db.Storage) (bool, error) {
 		return false, ERROR_MALICIOUS_URL_FORMAT
 	}
 
-	hashed, err := f.HashLink(normalizeURL(parsedURLStr))
-	if err != nil {
-		return false, fmt.Errorf("checkTimeout: %s", err.Error())
-	}
-
-	return f.checkTimeout(s, string(hashed)), nil
+	return true, nil
 }
 
 func (f *Filter) HashLink(link string) (string, error) {
@@ -87,6 +95,10 @@ func (f *Filter) checkTimeout(s *db.Storage, id string) bool {
 }
 
 func normalizeURL(url string) string {
+	if url == "/" {
+		return url
+	}
+
 	normalized := strings.TrimSuffix(url, "/")
 	return normalized
 }

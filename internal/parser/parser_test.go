@@ -22,9 +22,9 @@ func TestFindLinks(t *testing.T) {
 	emptyHtml := "<div class=\"section\"><ul><li><a href=\"\"></li></ul></div>"               //empty url
 	sameHtml := "<div class=\"section\"><ul><li><a href=\"www.google.com\"></li></ul></div>"  //empty url
 	parser := NewParser(keywords)
-	curr, err := url.Parse("www.google.com")
+	url, err := url.Parse("https://yahoo.com")
 	require.NoError(t, err)
-	parser.currAddr = curr
+	parser.currAddr = url
 
 	// Test: GOOD HTML
 	root, err := html.Parse(strings.NewReader(goodHtml))

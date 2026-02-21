@@ -1,39 +1,54 @@
 package filter
 
 import (
-	"github.com/evok02/jcrawler/internal/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"net/url"
 	"testing"
 	"time"
 )
 
 var f = NewFilter(time.Hour * 6)
 
-func TestIsValid(t *testing.T) {
-	s, err := db.NewStorage("mongodb://localhost:27017/?retryWrites=true")
-	require.NoError(t, err)
-	defer s.CloseConnection()
+func TestNormalizeURL(t *testing.T) {
+	normalized := normalizeURL("www.google.com//")
+	assert.Equal(t, "www.google.com/", normalized)
 
-	link, err := url.Parse("mailto://www.youtube.com/")
+	normalized = normalizeURL("/")
+	assert.NotEqual(t, "", normalized)
+}
+
+func TestHashLink(t *testing.T) {
+	hash, err := f.HashLink("www.google.com/")
 	require.NoError(t, err)
-	b, err := f.IsValid(link, s)
+	assert.NotEqual(t, "", hash)
+
+	hashClone, err := f.HashLink("www.google.com/")
+	require.NoError(t, err)
+	assert.Equal(t, hash, hashClone)
+}
+
+func TestFilterLink(t *testing.T) {
+	ok, err := filterLink("/")
 	require.Error(t, err)
-	assert.False(t, b)
+	assert.False(t, ok)
 
-	urlHash, err := f.HashLink("https://www.youtube.com")
-	require.NoError(t, err)
-	var p = db.Page{
-		URLHash:       string(urlHash),
-		Index:         0,
-		KeywordsFound: []string{},
-		UpdatedAt:     time.Now().UTC(),
-	}
+	ok, err = filterLink("#google.com")
+	require.Error(t, err)
+	assert.False(t, ok)
 
-	require.NoError(t, s.InsertPage(&p))
-	link, err = url.Parse("https://www.youtube.com/")
+	ok, err = filterLink("file:howtobecomrich.pdf")
+	require.Error(t, err)
+	assert.False(t, ok)
+
+	ok, err = filterLink("javascript:something.js")
+	require.Error(t, err)
+	assert.False(t, ok)
+
+	ok, err = filterLink("mailto:1234@gmail.com")
+	require.Error(t, err)
+	assert.False(t, ok)
+
+	ok, err = filterLink("https://netflix.com/")
 	require.NoError(t, err)
-	b, err = f.IsValid(link, s)
-	require.NoError(t, err)
+	assert.True(t, ok)
 }
