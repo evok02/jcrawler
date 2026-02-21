@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const MAX_AMOUT_ROUTINES = 240
+const MAX_AMOUNT_ROUTINES = 240
 
 var ERROR_INVALID_URL_FORMAT = errors.New("malicious url format")
 
@@ -65,7 +65,7 @@ func NewApp(cfgPath string) (*App, error) {
 
 func (app *App) FetcherRoutine() <-chan *worker.FetchResponse {
 	resChan := make(chan *worker.FetchResponse)
-	sem := make(chan struct{}, MAX_AMOUT_ROUTINES)
+	sem := make(chan struct{}, MAX_AMOUNT_ROUTINES)
 	go func() {
 	outer:
 		for {

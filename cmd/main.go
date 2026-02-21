@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
 // TODO: add docker-compose file
 
 // TODO: try to identify issue with "" url
@@ -18,6 +20,10 @@ import (
 // TODO: improve filtering based on previous indexing sum
 
 // TODO: add .github file
+
+// TODO: add index search for mongo
+
+// ---------------------------------------------------------
 
 func main() {
 	app, err := app.NewApp(".")
