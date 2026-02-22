@@ -136,7 +136,7 @@ func (p *Parser) findMatches(r *html.Node) error {
 	p.matches = NewMatches()
 	p.matches.InitKeywords(p.keywords)
 	for node := range r.Descendants() {
-		if node.Type == html.TextNode && node.DataAtom == atom.A {
+		if node.Type == html.TextNode && node.DataAtom == 0 {
 			for v := range strings.FieldsSeq(node.Data) {
 				p.buf = append(p.buf, (v + " ")...)
 				if state, ok := p.matches.Get(v); ok && state != FoundState {
