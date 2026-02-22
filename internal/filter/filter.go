@@ -87,7 +87,6 @@ func (f *Filter) checkTimeout(s *db.Storage, id string) bool {
 	}
 
 	if time.Since(p.UpdatedAt) < f.timeout {
-		fmt.Printf("Recent entry has been found: %s\n", p.UpdatedAt)
 		return false
 	}
 

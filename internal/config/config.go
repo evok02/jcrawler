@@ -12,6 +12,17 @@ type Config struct {
 	DB       *DBConfig
 	Seed     []string
 	Log      *LogConfig
+	Index    *IndexConfig
+}
+
+type IndexConfig struct {
+	Addr     string
+	User     string
+	Pwd      string
+	Settings struct {
+		ShardsNum   int
+		ReplicasNum int
+	}
 }
 
 type LogConfig struct {
@@ -44,6 +55,7 @@ func NewConfig(dirPath string) (*Config, error) {
 		Worker:   new(WorkerConfig),
 		DB:       new(DBConfig),
 		Log:      new(LogConfig),
+		Index:    new(IndexConfig),
 	}
 	err = extractValues(&c)
 	if err != nil {
@@ -61,6 +73,7 @@ func extractValues(c *Config) error {
 	extractDBConfig(c)
 	extractSeed(c)
 	extractLogConfig(c)
+	extractIndexConfig(c)
 	return nil
 }
 
@@ -99,4 +112,14 @@ func extractSeed(c *Config) {
 
 func extractLogConfig(c *Config) {
 	c.Log.Path = viper.GetString("log.path")
+}
+
+func extractIndexConfig(c *Config) {
+	c.Index.Addr = viper.GetString("index.address")
+	c.Index.User = viper.GetString("index.username")
+	c.Index.Pwd = viper.GetString("index.password")
+	shardsNum := viper.GetInt("index.settings.number_of_shards")
+	replicasNum := viper.GetInt("index.settings.number_of_replics")
+	c.Index.Settings.ReplicasNum = replicasNum
+	c.Index.Settings.ReplicasNum = shardsNum
 }

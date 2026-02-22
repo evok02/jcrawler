@@ -7,32 +7,32 @@ import (
 	"github.com/evok02/jcrawler/internal/config"
 	"github.com/evok02/jcrawler/internal/db"
 	"github.com/evok02/jcrawler/internal/filter"
+	"github.com/evok02/jcrawler/internal/index"
 	"github.com/evok02/jcrawler/internal/parser"
 	"github.com/evok02/jcrawler/internal/scheduler"
 	"github.com/evok02/jcrawler/internal/worker"
 	"github.com/joho/godotenv"
-	"log"
 	"log/slog"
 	"sync/atomic"
 	"time"
 )
 
-const MAX_AMOUNT_ROUTINES = 240
+const MAX_AMOUNT_ROUTINES = 50
 
 var ERROR_INVALID_URL_FORMAT = errors.New("malicious url format")
 
 type App struct {
-	Count      atomic.Int32
-	ErrCount   atomic.Int32
-	EntryCount atomic.Int32
-	Ctx        context.Context
-	Worker     *worker.Worker
-	Queue      *scheduler.JobQueue
-	Filter     *filter.Filter
-	Parser     *parser.Parser
-	DB         *db.Storage
-	Cfg        *config.Config
-	Logger     *slog.Logger
+	Count    atomic.Int32
+	ErrCount atomic.Int32
+	Ctx      context.Context
+	Worker   *worker.Worker
+	Queue    *scheduler.JobQueue
+	Filter   *filter.Filter
+	Parser   *parser.Parser
+	DB       *db.Storage
+	Cfg      *config.Config
+	Index    *index.Index
+	Logger   *slog.Logger
 }
 
 func NewApp(cfgPath string) (*App, error) {
@@ -47,6 +47,12 @@ func NewApp(cfgPath string) (*App, error) {
 	app.Worker = worker.NewWorker(cfg.Worker.Delay, cfg.Worker.Timeout)
 	app.Parser = parser.NewParser(cfg.Keywords)
 	app.Filter = filter.NewFilter(time.Hour * 6)
+
+	idx, err := index.Init(cfg.Index)
+	if err != nil {
+		return nil, err
+	}
+	app.Index = idx
 
 	s, err := db.NewStorage(cfg.DB.ConnString)
 	if err != nil {
@@ -130,6 +136,7 @@ func (app *App) parseResToPage(pres *parser.ParseResponse) (*db.Page, error) {
 		Index:         pres.Index,
 		KeywordsFound: keywords,
 		UpdatedAt:     time.Now().UTC(),
+		Content:       string(pres.Content),
 	}, nil
 }
 
@@ -145,9 +152,9 @@ func (app *App) ParserRoutine(in <-chan *worker.FetchResponse) <-chan *parser.Pa
 					go app.handleBadPage(res, err)
 					continue outer
 				}
-				if pres.Index > 5 {
-					log.Printf("Found valuable resource: %s\n", pres.Addr)
-				}
+				//if pres.Index > 5 {
+				//log.Printf("Found valuable resource: %s\n", pres.Addr)
+				//}
 				resChan <- pres
 				go app.createEntry(pres)
 			case <-app.Ctx.Done():
@@ -160,7 +167,7 @@ func (app *App) ParserRoutine(in <-chan *worker.FetchResponse) <-chan *parser.Pa
 }
 
 func (app *App) handleBadPage(res *worker.FetchResponse, err error) {
-	slog.Error("ParserRoutine: %s"+err.Error(),
+	app.Logger.Error("ParserRoutine: %s"+err.Error(),
 		slog.Any("res", res))
 	app.ErrCount.Add(1)
 }
@@ -168,19 +175,30 @@ func (app *App) handleBadPage(res *worker.FetchResponse, err error) {
 func (app *App) createEntry(pres *parser.ParseResponse) {
 	page, err := app.parseResToPage(pres)
 	if err != nil {
-		slog.Error("ParserRoutine: %s"+err.Error(),
+		app.Logger.Error("ParserRoutine: %s"+err.Error(),
 			slog.Any("page", page))
 		app.ErrCount.Add(1)
 		return
 	}
-	err = app.DB.InsertPage(page)
-	if err != nil {
-		slog.Error("ParserRoutine: %s"+err.Error(),
-			slog.Any("page", page))
-		app.ErrCount.Add(1)
-		return
-	}
-	app.EntryCount.Add(1)
+	go func() {
+		err = app.DB.InsertPage(page)
+		if err != nil {
+			slog.Error("ParserRoutine: %s"+err.Error(),
+				slog.Any("page", page))
+			app.ErrCount.Add(1)
+			return
+		}
+	}()
+
+	go func() {
+		err := app.Index.HandleEntry(app.Ctx, page)
+		if err != nil {
+			app.Logger.Error("ParserRoutine: %s"+err.Error(),
+				slog.Any("page", page))
+			app.ErrCount.Add(1)
+			return
+		}
+	}()
 }
 
 func (app *App) FilterRoutine(in <-chan *parser.ParseResponse) {

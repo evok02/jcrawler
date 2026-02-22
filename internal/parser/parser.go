@@ -58,6 +58,7 @@ func (m *Matches) InitKeyword(key string) {
 }
 
 type Parser struct {
+	buf        []byte
 	keywords   []string
 	matches    *Matches
 	linksFound []*url.URL
@@ -74,7 +75,9 @@ func NewParser(keywords []string) *Parser {
 }
 
 type ParseResponse struct {
+	Content []byte
 	Links   []*url.URL
+	Title   string
 	Addr    *url.URL
 	mu      *sync.Mutex
 	Matches *Matches
@@ -86,18 +89,22 @@ var mu = new(sync.Mutex)
 func (p *Parser) Parse(fres *worker.FetchResponse) (*ParseResponse, error) {
 	pres := ParseResponse{mu: mu, Addr: fres.HostName}
 	p.currAddr = fres.HostName
+	if title := fres.Response.Header["Title"]; len(title) > 0 {
+		pres.Title = title[0]
+	}
 	root, err := html.Parse(fres.Response.Body)
-	p.currAddr = fres.HostName
-	defer fres.Response.Body.Close()
 	if err != nil {
 		return nil, fmt.Errorf("Parse: %s", err.Error())
 	}
+	defer fres.Response.Body.Close()
 
 	p.findLinks(root)
 	p.findMatches(root)
 	pres.Index = calculateIndex(p.matches)
 	pres.Links = p.linksFound
 	pres.Matches = p.matches
+	pres.Content = append(pres.Content, p.buf...)
+	p.buf = p.buf[len(p.buf):]
 	return &pres, nil
 }
 
@@ -129,8 +136,9 @@ func (p *Parser) findMatches(r *html.Node) error {
 	p.matches = NewMatches()
 	p.matches.InitKeywords(p.keywords)
 	for node := range r.Descendants() {
-		if node.Type == html.TextNode && node.DataAtom == 0 {
+		if node.Type == html.TextNode && node.DataAtom == atom.A {
 			for v := range strings.FieldsSeq(node.Data) {
+				p.buf = append(p.buf, (v + " ")...)
 				if state, ok := p.matches.Get(v); ok && state != FoundState {
 					err := p.matches.SetFound(v)
 					if err != nil {

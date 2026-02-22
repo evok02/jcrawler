@@ -19,8 +19,6 @@ import (
 
 // TODO: improve filtering based on previous indexing sum
 
-// TODO: add .github file
-
 // TODO: add index search for mongo
 
 // ---------------------------------------------------------
@@ -52,17 +50,17 @@ func main() {
 	go func() {
 		count := 1
 		for range longTicker.C {
-			log.Printf("Total requests made in %d s: %d\nErrors made: %d\nEntries made: %d\n",
-				count*100, app.Count.Load(), app.ErrCount.Load(), app.EntryCount.Load())
+			log.Printf("Total requests made in %d s: %d\nErrors made: %d\n",
+				count*100, app.Count.Load(), app.ErrCount.Load())
 			count++
 		}
 	}()
 	go func() {
 		for range shortTicker.C {
-			log.Printf("Total request made: %d\nErrors made: %d\nEntries made: %d\n",
-				app.Count.Load(), app.ErrCount.Load(), app.EntryCount.Load())
+			log.Printf("Total request made: %d\nErrors made: %d\n",
+				app.Count.Load(), app.ErrCount.Load())
 		}
 	}()
 	log.Printf("Running...")
-	time.Sleep(10 * time.Minute)
+	time.Sleep(60 * time.Minute)
 }
