@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"time"
 )
 
@@ -15,12 +16,17 @@ var ERROR_EMPTY_COLLECION = errors.New("empty collection of documents")
 var ERROR_UNSUCCESSFUL_TRANSACTION = errors.New("couldnt execute transaction")
 
 type Page struct {
-	Content       string    `bson:"page_content"`
-	KeywordsFound []string  `bson:"keywords_found"`
-	UpdatedAt     time.Time `bson:"updated_at"`
-	URLHash       string    `bson:"url_hash_id"`
-	URL           string    `bson:"url"`
-	Index         int       `bson:"index"`
+	Content   string    `bson:"page_content"`
+	UpdatedAt time.Time `bson:"updated_at"`
+	Title     string    `bson:"title"`
+	URLHash   string    `bson:"url_hash_id"`
+	URL       string    `bson:"url"`
+}
+
+type PageServe struct {
+	URL string `bson:"url" json:"url"`
+	Title string `bson:"title" json:"title"`
+	UpdatedAt *time.Time `bson:"updated_at" json:"updated_at"`
 }
 
 func (s *Storage) GetPageByID(id string) (*Page, error) {
@@ -120,10 +126,9 @@ func (s *Storage) DeletePageByID(id string) error {
 func (s *Storage) UpdatePageByID(id string, newPage *Page) (*Page, error) {
 	filter := bson.D{{Key: "url_hash_id", Value: id}}
 	update := bson.D{{Key: "$set", Value: bson.D{
-		{Key: "keywords_found", Value: newPage.KeywordsFound},
-		{Key: "index", Value: newPage.Index},
+		{Key: "title", Value: newPage.Title},
 		{Key: "updated_at", Value: time.Now().UTC()},
-		{Key: "content", Value: newPage.Content},
+		{Key: "page_content", Value: newPage.Content},
 	}}}
 	coll := s.DB.Database("crawler").Collection("pages")
 
@@ -145,4 +150,24 @@ func (s *Storage) UpdatePageByID(id string, newPage *Page) (*Page, error) {
 	}
 
 	return replaced, nil
+}
+
+func (s *Storage) GetPagesByIndex(query string) ([]*PageServe, error) {
+	servedPages := []*PageServe{}
+	collection := s.DB.Database("crawler").Collection("pages")
+
+	filter := bson.M{"$text":bson.M{"$search":query}}
+	project := bson.M{"page_content": 0}
+	findOptions := options.Find().SetProjection(project)
+
+	cursor, err := collection.Find(s.ctx, filter, findOptions)
+	if err != nil {
+		return nil, fmt.Errorf("GetPagesByIndex: %s", err)
+	}
+	defer cursor.Close(s.ctx)
+
+	if err := cursor.All(s.ctx, servedPages); err != nil {
+		return nil, fmt.Errorf("GetPagesByIndex: %s", err)
+	}
+	return servedPages, nil
 }

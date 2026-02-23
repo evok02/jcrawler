@@ -7,12 +7,11 @@ import (
 )
 
 type Config struct {
-	Keywords []string
-	Worker   *WorkerConfig
-	DB       *DBConfig
-	Seed     []string
-	Log      *LogConfig
-	Index    *IndexConfig
+	Worker *WorkerConfig
+	DB     *DBConfig
+	Seed   []string
+	Log    *LogConfig
+	Index  *IndexConfig
 }
 
 type IndexConfig struct {
@@ -51,11 +50,10 @@ func NewConfig(dirPath string) (*Config, error) {
 		return nil, fmt.Errorf("NewConfig: %s", err.Error())
 	}
 	var c = Config{
-		Keywords: []string{},
-		Worker:   new(WorkerConfig),
-		DB:       new(DBConfig),
-		Log:      new(LogConfig),
-		Index:    new(IndexConfig),
+		Worker: new(WorkerConfig),
+		DB:     new(DBConfig),
+		Log:    new(LogConfig),
+		Index:  new(IndexConfig),
 	}
 	err = extractValues(&c)
 	if err != nil {
@@ -65,7 +63,6 @@ func NewConfig(dirPath string) (*Config, error) {
 }
 
 func extractValues(c *Config) error {
-	extractKeywords(c)
 	err := extractWorkerConfig(c.Worker)
 	if err != nil {
 		return err
@@ -75,10 +72,6 @@ func extractValues(c *Config) error {
 	extractLogConfig(c)
 	extractIndexConfig(c)
 	return nil
-}
-
-func extractKeywords(c *Config) {
-	c.Keywords = viper.GetStringSlice("keywords")
 }
 
 func extractWorkerConfig(wc *WorkerConfig) error {

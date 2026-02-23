@@ -13,11 +13,12 @@ import (
 	"github.com/evok02/jcrawler/internal/worker"
 	"github.com/joho/godotenv"
 	"log/slog"
+	"strings"
 	"sync/atomic"
 	"time"
 )
 
-const MAX_AMOUNT_ROUTINES = 50
+const MAX_AMOUNT_ROUTINES = 100
 
 var ERROR_INVALID_URL_FORMAT = errors.New("malicious url format")
 
@@ -45,7 +46,7 @@ func NewApp(cfgPath string) (*App, error) {
 	app.Cfg = cfg
 
 	app.Worker = worker.NewWorker(cfg.Worker.Delay, cfg.Worker.Timeout)
-	app.Parser = parser.NewParser(cfg.Keywords)
+	app.Parser = parser.NewParser()
 	app.Filter = filter.NewFilter(time.Hour * 6)
 
 	idx, err := index.Init(cfg.Index)
@@ -124,19 +125,12 @@ func (app *App) parseResToPage(pres *parser.ParseResponse) (*db.Page, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ParseResToPage: %s", err.Error())
 	}
-	keywords := []string{}
-	for k, v := range pres.Matches.MatchesFound {
-		if v == parser.FoundState {
-			keywords = append(keywords, k)
-		}
-	}
 	return &db.Page{
-		URLHash:       hashLink,
-		URL:           pres.Addr.String(),
-		Index:         pres.Index,
-		KeywordsFound: keywords,
-		UpdatedAt:     time.Now().UTC(),
-		Content:       string(pres.Content),
+		URLHash:   hashLink,
+		URL:       pres.Addr.String(),
+		UpdatedAt: time.Now().UTC(),
+		Content:   strings.ToValidUTF8(string(pres.Content), ""),
+		Title:     pres.Title,
 	}, nil
 }
 
@@ -152,9 +146,6 @@ func (app *App) ParserRoutine(in <-chan *worker.FetchResponse) <-chan *parser.Pa
 					go app.handleBadPage(res, err)
 					continue outer
 				}
-				//if pres.Index > 5 {
-				//log.Printf("Found valuable resource: %s\n", pres.Addr)
-				//}
 				resChan <- pres
 				go app.createEntry(pres)
 			case <-app.Ctx.Done():

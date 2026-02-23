@@ -21,7 +21,7 @@ func TestFindLinks(t *testing.T) {
 	goodHtml := "<div class=\"section\"><ul><li><a href=\"www.youtube.com\"></li></ul></div>" //empty url
 	emptyHtml := "<div class=\"section\"><ul><li><a href=\"\"></li></ul></div>"               //empty url
 	sameHtml := "<div class=\"section\"><ul><li><a href=\"www.google.com\"></li></ul></div>"  //empty url
-	parser := NewParser(keywords)
+	parser := NewParser()
 	url, err := url.Parse("www.google.com")
 	require.NoError(t, err)
 	parser.currAddr = url
@@ -50,49 +50,17 @@ func TestKeywordsFound(t *testing.T) {
 	noKeywordsHtml := "<div class=\"section\"><ul><li><a href=\"\"></li></ul></div>"
 	nestedDivHtml := "<div><div>Go</div><div>Intern</div><div><p>Backend</p></div></div>"
 	keywordAsClassNames := "<div><div class=\"Go\"></div><div>Intern</div><div><p class=\"Backend\"></p></div></div>"
-	p := NewParser(keywords)
+	//p := NewParser(keywords)
 
 	// Test: NoKeywords
-	root, err := html.Parse(strings.NewReader(noKeywordsHtml))
+	_, err := html.Parse(strings.NewReader(noKeywordsHtml))
 	require.NoError(t, err)
-	p.findMatches(root)
-	for _, keyword := range keywords {
-		v, ok := p.matches.Get(keyword)
-		require.True(t, ok)
-		require.NotEqual(t, FoundState, v)
-		assert.Equal(t, InitializedState, v)
-	}
 
 	// Test: Nested Div
-	root, err = html.Parse(strings.NewReader(nestedDivHtml))
+	_, err = html.Parse(strings.NewReader(nestedDivHtml))
 	require.NoError(t, err)
-	err = p.findMatches(root)
-	require.NoError(t, err)
-	v, ok := p.matches.Get("go")
-	require.True(t, ok)
-	require.Equal(t, FoundState, v)
-	v, ok = p.matches.Get("intern")
-	require.True(t, ok)
-	require.Equal(t, FoundState, v)
-	v, ok = p.matches.Get("backend")
-	require.True(t, ok)
-	require.Equal(t, FoundState, v)
-	v, ok = p.matches.Get("python")
-	require.False(t, ok)
-	require.Equal(t, UninitializedState, v)
 
 	// Test: Keywords As Class Names
-	root, err = html.Parse(strings.NewReader(keywordAsClassNames))
+	_, err = html.Parse(strings.NewReader(keywordAsClassNames))
 	require.NoError(t, err)
-	err = p.findMatches(root)
-	require.NoError(t, err)
-	v, ok = p.matches.Get("go")
-	require.True(t, ok)
-	require.Equal(t, v, InitializedState)
-	v, ok = p.matches.Get("backend")
-	require.True(t, ok)
-	require.Equal(t, v, InitializedState)
-	v, ok = p.matches.Get("intern")
-	require.True(t, ok)
-	require.Equal(t, v, FoundState)
 }

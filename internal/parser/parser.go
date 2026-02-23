@@ -59,18 +59,14 @@ func (m *Matches) InitKeyword(key string) {
 
 type Parser struct {
 	buf        []byte
-	keywords   []string
-	matches    *Matches
+	currTitle  string
 	linksFound []*url.URL
 	currAddr   *url.URL
 }
 
-func NewParser(keywords []string) *Parser {
-	matches := NewMatches()
-	matches.InitKeywords(keywords)
+func NewParser() *Parser {
 	return &Parser{
-		keywords: keywords,
-		matches:  matches,
+		buf: make([]byte, 4096),
 	}
 }
 
@@ -80,8 +76,6 @@ type ParseResponse struct {
 	Title   string
 	Addr    *url.URL
 	mu      *sync.Mutex
-	Matches *Matches
-	Index   int
 }
 
 var mu = new(sync.Mutex)
@@ -99,11 +93,11 @@ func (p *Parser) Parse(fres *worker.FetchResponse) (*ParseResponse, error) {
 	defer fres.Response.Body.Close()
 
 	p.findLinks(root)
-	p.findMatches(root)
-	pres.Index = calculateIndex(p.matches)
+	p.findRawText(root)
 	pres.Links = p.linksFound
-	pres.Matches = p.matches
 	pres.Content = append(pres.Content, p.buf...)
+	pres.Title = p.currTitle
+	p.currTitle = ""
 	p.buf = p.buf[len(p.buf):]
 	return &pres, nil
 }
@@ -132,31 +126,26 @@ func (p *Parser) findLinks(root *html.Node) {
 	}
 }
 
-func (p *Parser) findMatches(r *html.Node) error {
-	p.matches = NewMatches()
-	p.matches.InitKeywords(p.keywords)
-	for node := range r.Descendants() {
-		if node.Type == html.TextNode && node.DataAtom == 0 {
-			for v := range strings.FieldsSeq(node.Data) {
-				p.buf = append(p.buf, (v + " ")...)
-				if state, ok := p.matches.Get(v); ok && state != FoundState {
-					err := p.matches.SetFound(v)
-					if err != nil {
-						return fmt.Errorf("findMatches: %s", err.Error())
-					}
-				}
+func (p *Parser) findRawText(n *html.Node) {
+	var traverse func(n *html.Node)
+	traverse = func(n *html.Node) {
+		switch n.Type {
+		case html.TextNode:
+			normalized := strings.TrimSpace(n.Data)
+			if len(normalized) != 0 {
+				p.buf = append(p.buf, (normalized + " ")...)
+			}
+		case html.ElementNode:
+			if n.Data == "script" || n.Data == "style" {
+				return
+			}
+			if n.Data == "title" && n.FirstChild != nil {
+				p.currTitle = n.FirstChild.Data
 			}
 		}
-	}
-	return nil
-}
-
-func calculateIndex(m *Matches) int {
-	var res int
-	for _, v := range m.MatchesFound {
-		if v == FoundState {
-			res++
+		for e := n.FirstChild; e != nil; e = e.NextSibling {
+			traverse(e)
 		}
 	}
-	return res
+	traverse(n)
 }
